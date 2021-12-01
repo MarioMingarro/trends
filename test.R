@@ -5,12 +5,13 @@ library(segmented)
 Datos <- read_excel("C:/GITHUB_REP/trends/Data/Data_test.xlsx", sheet = "Hoja1")
 colnames(Datos)
 
-segmentes_result <- data.frame(
-  Pg =double(),
-  P1 =double(),
-  P2 =double(),
-  Y  =double()
+segmented_result <- data.frame(
+  Pg ="NULL",
+  P1 ="NULL",
+  P2 ="NULL",
+  Y  ="NULL"
   )
+
 for (i in 1:length(Datos)){
   kk <-  Datos[i,2:117]
   kk <- kk/10
@@ -35,14 +36,9 @@ for (i in 1:length(Datos)){
                     P1,
                     P2,
                     Y )
-  segmented_result[] <- rbind(segmentes_result)
+  segmented_result <- rbind(segmented_result, res)
   
 }
-kk <-  Datos[17,2:117]
-kk <- kk/10
-kk <- as.data.frame(t(kk))
-kk <- mutate(kk, YEAR = seq(1901, 2016, 1))
-colnames(kk) <- c("TMED", "YEAR")
 
 ### SEGMENTED
 my.lm <- lm(TMED ~ YEAR, data = kk)
