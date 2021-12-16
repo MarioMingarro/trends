@@ -1,7 +1,88 @@
 library(readxl)
 library(tidyverse)
-library(segmented)
+library(sp)
+library(raster)
+library(strucchange)
+library(tictoc)
+tic()
+TXMC <- raster::stack()
+for (i in 1980:1990){
+  raster <- calc(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), max) # MIN
+  TXMC <- raster::stack(TXMC, raster)
+}
+toc()
+names(TXMC) <- paste0("Y_", seq(1979, 2019, by = 1))
 
+mask <- shapefile("C:/GITHUB_REP/butterfly_climate_analysis/Data/Peninsula_Iberica_mask.shp")
+random_points <- spsample(mask, n=10, type='random')
+data <- raster::extract(TXMC,
+                        random_points,
+                        df = TRUE)
+resultados <- data.frame(year_break = "", 
+                         P_pre = "",
+                         P_post = "", 
+                         P_total = "", 
+                         F_sup = "",
+                         p.value = "")
+
+for (i in 1:nrow(data)){
+  ss <- as.vector(data[i,-1])
+  ss <- ts(t(ss),
+           start = 1979, 
+           end = 2019, 
+           frequency = 1)
+  #year
+  qlr <- Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
+  bp <- breakpoints(qlr)
+  year_break <- breakdates(bp)
+  resultados[i,1] <- year_break
+  
+  
+  #trends
+  ##pre
+  pre <- ss[1:bp$breakpoints]
+  year_pre <- seq(1979, year_break, 1)
+  lm_pre <- lm(pre ~ year_pre)
+  resultados[i,2] <- round(lm_pre$coefficients[2],4)
+  
+  ##post
+  post <- ss[bp$breakpoints:length(ss)]
+  year_post <- seq(year_break,2019,1)
+  lm_post <- lm(post ~ year_post)
+  resultados[i,3] <- round(lm_post$coefficients[2],4)
+  
+  ##general
+  year_total <- seq(1979,2019,1)
+  lm_total <- lm(ss ~ year_total)
+  resultados[i,4] <- round(lm_total$coefficients[2],4)
+  
+  # Test the null hypothesis that the annual temperature remains constant over the years
+  test <- sctest(qlr, type = "supF")
+  resultados[i,5] <- test[1]
+  resultados[i,6] <- test[2]
+  sa_cusum <- efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
+}
+kk <- confint(bp, breaks = 1)
+
+###--------------------
+sa_cusum <- efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
+plot(sa_cusum)
+sa_cusum$sigma
+my.seg <- segmented(my.lm, seg.Z = ~ year)
+summary(sa_cusum)
+sa_cusum$coefficients
+
+
+summary(lm_pre) 
+
+library(forecast)
+fit <- tslm(ss[1:24,] ~ trend)
+fit$coefficients
+#---
+decomposedRes <- decompose(ss)
+plot(decomposedRes)
+
+#---------------------------------------------------------------#
 Datos <- read_excel("C:/GITHUB_REP/trends/Data/Data_test.xlsx", sheet = "Hoja1")
 colnames(Datos)
 
