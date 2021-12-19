@@ -8,22 +8,29 @@ library(sp)
 library(raster)
 library(strucchange)
 library(tictoc)
-
+i=28
 
 tic()
 TXMC <- raster::stack()
-for (i in 1990:2019){
+for (i in 1901:2016){
   raster <- calc(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), max)
   TXMC <- raster::stack(TXMC, raster)
 }
 toc()
-names(TXMC) <- paste0("Y_", seq(1979, 2019, by = 1))
+names(TXMC) <- paste0("Y_", seq(1901, 2016, by = 1))
 
 mask <- shapefile("C:/GITHUB_REP/butterfly_climate_analysis/Data/Peninsula_Iberica_mask.shp")
 random_points <- spsample(mask, n=10, type='random')
 data <- raster::extract(TXMC,
                         random_points,
                         df = TRUE)
+
+long_lat <- rasterToPoints(TXMC[[1]], spatial = TRUE)
+data <- raster::extract(TXMC,
+                        long_lat,
+                        df = TRUE)
+
+
 resultados <- data.frame(year_break = "", 
                          P_pre = "",
                          P_post = "", 
@@ -31,6 +38,7 @@ resultados <- data.frame(year_break = "",
                          F_sup = "",
                          p.value = "")
 
+tic()
 for (i in 1:nrow(data)){
   ss <- as.vector(data[i,-1])
   ss <- ts(t(ss),
@@ -66,8 +74,21 @@ for (i in 1:nrow(data)){
   test <- sctest(qlr, type = "supF")
   resultados[i,5] <- test[1]
   resultados[i,6] <- test[2]
-  sa_cusum <- efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
+  
 }
+toc()
+
+resultados_2 <- cbind(resultados, rownames(resultados))
+long_lat2 <- as.data.frame(rasterToPoints(TXMC[[1]]))
+long_lat2 <- long_lat2[1:nrow(resultados_2),-3]
+long_lat2 <- cbind(long_lat2, rownames(long_lat2))
+kk <- cbind(resultados_2, long_lat2)
+kk <- data.frame(x = kk$x, y = kk$y, z = kk$year_break)
+
+ggplot(kk, aes(x = x, y = y, col=z, fill = z))+
+  geom_point()
+
+sa_cusum <- efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
 kk <- confint(bp, breaks = 1)
 
 ###--------------------
