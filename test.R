@@ -1,13 +1,19 @@
+closeAllConnections()
+rm(list=(ls()[ls()!="v"]))
+gc(reset=TRUE)
+
 library(readxl)
 library(tidyverse)
 library(sp)
 library(raster)
 library(strucchange)
 library(tictoc)
+
+
 tic()
 TXMC <- raster::stack()
-for (i in 1980:1990){
-  raster <- calc(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), max) # MIN
+for (i in 1990:2019){
+  raster <- calc(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), max)
   TXMC <- raster::stack(TXMC, raster)
 }
 toc()
