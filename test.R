@@ -1,5 +1,5 @@
 closeAllConnections()
-rm(list=(ls()[ls()!="v"]))
+rm(list=(ls()[ls()!="data2"]))
 gc(reset=TRUE)
 
 library(readxl)
@@ -8,28 +8,100 @@ library(sp)
 library(raster)
 library(strucchange)
 library(tictoc)
-i=28
+library(doParallel)
+library(foreach)
+
 
 tic()
 TXMC <- raster::stack()
+# i=1901
+# kk <- raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE))
+# res(kk)
+# kk <- raster::aggregate(kk, 6)
+# kk <- reclassify(kk, c(-Inf, -5000, NA))
+# plot(kk[[1]])
+# str(kk[[1]])
+
 for (i in 1901:2016){
-  raster <- calc(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), max)
+  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), 4)
+  raster <- calc(raster, max)
   TXMC <- raster::stack(TXMC, raster)
 }
-toc()
+toc() #8000sec
+res(raster)
 names(TXMC) <- paste0("Y_", seq(1901, 2016, by = 1))
 
-mask <- shapefile("C:/GITHUB_REP/butterfly_climate_analysis/Data/Peninsula_Iberica_mask.shp")
-random_points <- spsample(mask, n=10, type='random')
-data <- raster::extract(TXMC,
-                        random_points,
-                        df = TRUE)
+
 
 long_lat <- rasterToPoints(TXMC[[1]], spatial = TRUE)
 data <- raster::extract(TXMC,
                         long_lat,
                         df = TRUE)
 
+n.cores <- parallel::detectCores() - 1
+my.cluster <- parallel::makeCluster(
+  n.cores, 
+  type = "PSOCK"
+)
+doParallel::registerDoParallel(cl = my.cluster)
+
+res <- foreach(i = 1:nrow(data),
+               .combine = 'rbind'
+) %dopar% {
+  ss <- as.vector(data[i,-1])
+  ss <- ts(t(ss),
+           start = 1901,
+           end = 2016,
+           frequency = 1)
+  #year
+  qlr <- strucchange::Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
+  bp <- strucchange::breakpoints(qlr)
+  year_break <- strucchange::breakdates(bp)
+  
+  pre <- ss[1:bp$breakpoints]
+  year_pre <- seq(1901, year_break, 1)
+  lm_pre <- lm(pre ~ year_pre)
+  P_pre <- round(lm_pre$coefficients[2],4)
+  
+  
+  ##post
+  post <- ss[bp$breakpoints:length(ss)]
+  year_post <- seq(year_break,2016,1)
+  lm_post <- lm(post ~ year_post)
+  P_post <- round(lm_post$coefficients[2],4)
+  
+  ##general
+  year_total <- seq(1901,2016,1)
+  lm_total <- lm(ss ~ year_total)
+  P_total <- round(lm_total$coefficients[2],4)
+  
+  # Test the null hypothesis that the annual temperature remains constant over the years
+  test <- strucchange::sctest(qlr, type = "supF")
+  F.sup <- test[1]
+  p.value <- test[2]
+  sa.cusum <- strucchange::efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
+  data.frame(year_break, P_pre, P_post, P_total, F.sup, p.value, sa.cusum)
+}
+
+parallel::stopCluster(cl = my.cluster)
+
+
+long_lat2 <- as.data.frame(rasterToPoints(TXMC[[1]]))
+long_lat2 <- long_lat2[1:nrow(resultados_2),-3]
+long_lat2 <- cbind(long_lat2, id= rownames(long_lat2))
+resultados_2 <- cbind(res, long_lat2$id)
+kk <- cbind(resultados_2, long_lat2)
+kk <- data.frame(x = kk$x, y = kk$y, z = kk$p.value)
+ggplot(kk, aes(x = x, y = y, col=z))+
+  geom_point()+
+  scale_colour_viridis_c()
+
+
+#mask <- shapefile("C:/GITHUB_REP/butterfly_climate_analysis/Data/Peninsula_Iberica_mask.shp")
+#random_points <- spsample(mask, n=10, type='random')
+#data <- raster::extract(TXMC,
+#                        random_points,
+#                        df = TRUE)
 
 resultados <- data.frame(year_break = "", 
                          P_pre = "",
@@ -42,8 +114,8 @@ tic()
 for (i in 1:nrow(data)){
   ss <- as.vector(data[i,-1])
   ss <- ts(t(ss),
-           start = 1979, 
-           end = 2019, 
+           start = 1901, 
+           end = 2016, 
            frequency = 1)
   #year
   qlr <- Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
@@ -55,18 +127,18 @@ for (i in 1:nrow(data)){
   #trends
   ##pre
   pre <- ss[1:bp$breakpoints]
-  year_pre <- seq(1979, year_break, 1)
+  year_pre <- seq(1901, year_break, 1)
   lm_pre <- lm(pre ~ year_pre)
   resultados[i,2] <- round(lm_pre$coefficients[2],4)
   
   ##post
   post <- ss[bp$breakpoints:length(ss)]
-  year_post <- seq(year_break,2019,1)
+  year_post <- seq(year_break,2016,1)
   lm_post <- lm(post ~ year_post)
   resultados[i,3] <- round(lm_post$coefficients[2],4)
   
   ##general
-  year_total <- seq(1979,2019,1)
+  year_total <- seq(1901,2016,1)
   lm_total <- lm(ss ~ year_total)
   resultados[i,4] <- round(lm_total$coefficients[2],4)
   
@@ -78,18 +150,9 @@ for (i in 1:nrow(data)){
 }
 toc()
 
-resultados_2 <- cbind(resultados, rownames(resultados))
-long_lat2 <- as.data.frame(rasterToPoints(TXMC[[1]]))
-long_lat2 <- long_lat2[1:nrow(resultados_2),-3]
-long_lat2 <- cbind(long_lat2, rownames(long_lat2))
-kk <- cbind(resultados_2, long_lat2)
-kk <- data.frame(x = kk$x, y = kk$y, z = kk$year_break)
 
-ggplot(kk, aes(x = x, y = y, col=z, fill = z))+
-  geom_point()
 
-sa_cusum <- efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
-kk <- confint(bp, breaks = 1)
+
 
 ###--------------------
 sa_cusum <- efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
