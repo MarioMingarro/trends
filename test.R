@@ -12,8 +12,7 @@ library(doParallel)
 library(foreach)
 
 
-tic()
-TXMC <- raster::stack()
+
 # i=1901
 # kk <- raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE))
 # res(kk)
@@ -21,7 +20,32 @@ TXMC <- raster::stack()
 # kk <- reclassify(kk, c(-Inf, -5000, NA))
 # plot(kk[[1]])
 # str(kk[[1]])
+i=1901
+kk <- raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE))
+mask <- raster::raster("./Data/MASK_CHELSA.tif")
 
+
+tic()
+kk2 <- mask(kk, mask)
+kk2 <- raster::aggregate(kk2, 6)
+toc()# 260.75 sec elapsed
+
+tic()
+kk3 <- reclassify(kk, c(-Inf, -999, NA))
+kk3 <- raster::aggregate(kk3, 6)
+toc()# 244.56 sec elapsed
+
+tic()
+kk4 <- raster::aggregate(kk, 6)
+toc() # 206.59 sec elapsed
+
+
+plot(kk2)
+plot(kk3)
+plot(kk4)
+
+tic()
+TXMC <- raster::stack()
 for (i in 1901:2016){
   raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), 4)
   raster <- calc(raster, max)
@@ -80,7 +104,7 @@ res <- foreach(i = 1:nrow(data),
   F.sup <- test[1]
   p.value <- test[2]
   sa.cusum <- strucchange::efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
-  data.frame(year_break, P_pre, P_post, P_total, F.sup, p.value, sa.cusum)
+  #data.frame(year_break, P_pre, P_post, P_total, F.sup, p.value, sa.cusum)
 }
 
 parallel::stopCluster(cl = my.cluster)
