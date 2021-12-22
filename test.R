@@ -24,6 +24,8 @@ i=1901
 kk <- raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE))
 mask <- raster::raster("./Data/MASK_CHELSA.tif")
 
+kk <- raster("B:/DATA/CHELSA/WORLD/TMAX/CHELSAcruts_tmax_1_1901_V.1.0.tif" )
+res(kk)
 
 tic()
 kk2 <- mask(kk, mask)
@@ -31,23 +33,21 @@ kk2 <- raster::aggregate(kk2, 6)
 toc()# 260.75 sec elapsed
 
 tic()
-kk3 <- reclassify(kk, c(-Inf, -999, NA))
-kk3 <- raster::aggregate(kk3, 6)
+kk <- raster::aggregate(kk, 10)
+kk <- reclassify(kk, c(-Inf, -999, NA))
 toc()# 244.56 sec elapsed
+
+
 
 tic()
 kk4 <- raster::aggregate(kk, 6)
 toc() # 206.59 sec elapsed
 
-
-plot(kk2)
-plot(kk3)
-plot(kk4)
-
 tic()
 TXMC <- raster::stack()
-for (i in 1901:2016){
+for (i in 1901){
   raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), 4)
+  raster <- reclassify(kk, c(-Inf, -999, NA))
   raster <- calc(raster, max)
   TXMC <- raster::stack(TXMC, raster)
 }
