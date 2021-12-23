@@ -1,6 +1,7 @@
 closeAllConnections()
 rm(list=(ls()[ls()!="data2"]))
 gc(reset=TRUE)
+source("Dependencies/Functions.R")
 
 library(readxl)
 library(tidyverse)
