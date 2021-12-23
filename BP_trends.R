@@ -7,7 +7,7 @@ source("Dependencies/Functions.R")
 tic()
 TXMC <- raster::stack()
 for (i in 1901:2016){
-  raster <- raster::aggregate(raster::stack(list.files("B:\DATA\CHELSA\SPAIN\TMAX", pattern = paste0(i), full.names = TRUE)), 10)
+  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), 10)
   raster <- reclassify(raster, c(-Inf, -999, NA))
   raster <- calc(raster, max)
   TXMC <- raster::stack(TXMC, raster)
@@ -19,6 +19,9 @@ long_lat <- rasterToPoints(TXMC[[1]], spatial = TRUE)
 data <- raster::extract(TXMC,
                         long_lat,
                         df = TRUE)
+
+rm(raster)
+rm(TXMC)
 
 n.cores <- parallel::detectCores() - 1
 my.cluster <- parallel::makeCluster(
