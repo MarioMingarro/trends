@@ -46,8 +46,8 @@ toc() # 206.59 sec elapsed
 tic()
 TXMC <- raster::stack()
 for (i in 1901){
-  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), 4)
-  raster <- reclassify(kk, c(-Inf, -999, NA))
+  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/WORLD/TMAX", pattern = paste0(i), full.names = TRUE)), 10)
+  raster <- reclassify(raster, c(-Inf, -999, NA))
   raster <- calc(raster, max)
   TXMC <- raster::stack(TXMC, raster)
 }
@@ -56,11 +56,12 @@ res(raster)
 names(TXMC) <- paste0("Y_", seq(1901, 2016, by = 1))
 
 
-
+tic()
 long_lat <- rasterToPoints(TXMC[[1]], spatial = TRUE)
 data <- raster::extract(TXMC,
                         long_lat,
                         df = TRUE)
+toc()
 
 n.cores <- parallel::detectCores() - 1
 my.cluster <- parallel::makeCluster(
