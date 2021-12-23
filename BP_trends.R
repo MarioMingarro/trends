@@ -7,12 +7,16 @@ source("Dependencies/Functions.R")
 tic()
 TXMC <- raster::stack()
 for (i in 1901:2016){
-  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), fact=10, fun=mean)
-  raster <- reclassify(raster, c(-Inf, -999, NA))
-  raster <- calc(raster, max)
-  TXMC <- raster::stack(TXMC, raster)
+  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), 
+                              fact=10, fun=mean)
+  raster <- reclassify(raster, 
+                       c(-Inf, -999, NA))
+  raster <- calc(raster, 
+                 max)
+  TXMC <- raster::stack(TXMC, 
+                        raster)
 }
-
+toc()
 names(TXMC) <- paste0("Y_", seq(1901, 2016, by = 1))
 
 long_lat <- rasterToPoints(TXMC[[1]], spatial = TRUE)
@@ -37,7 +41,7 @@ my.cluster <- parallel::makeCluster(
 )
 doParallel::registerDoParallel(cl = my.cluster)
 
-res <- foreach(i = 7500:nrow(data), # 1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
+res <- foreach(i = 1:nrow(data), # 1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
                .combine = 'rbind'
 ) %dopar% {
   ss <- as.vector(data[i,-1])
@@ -78,17 +82,24 @@ res <- foreach(i = 7500:nrow(data), # 1:2500  # 2500:5000 # 5000:7500 # 7500:nro
 parallel::stopCluster(cl = my.cluster)
 toc()
 #resultados <- res
-resultados <- rbind(resultados, res)
-resultados <- resultados[1:nrow(data),]
+
 
 
 # Plot
-long_lat2 <- as.data.frame(rasterToPoints(raster::aggregate(raster("B:/DATA/CHELSA/SPAIN/TMAX/CHELSAcruts_tmax_1_1902_V.1.0.tif"), 10)))
-long_lat2 <- long_lat2[1:nrow(resultados),-3]
+long_lat2 <- as.data.frame(rasterToPoints(TXMC[[1]]))
+long_lat2 <- long_lat2[1:nrow(res),-3]
 long_lat2 <- cbind(long_lat2, id= rownames(long_lat2))
-resultados_2 <- cbind(resultados, long_lat2$id)
+resultados_2 <- cbind(res, long_lat2$id)
 kk <- cbind(resultados_2, long_lat2)
-kk <- data.frame(x = kk$x, y = kk$y, z = kk$year_break)
+kk <- data.frame(x = kk$x, y = kk$y, z = kk$P_post/10)
 ggplot(kk, aes(x = x, y = y, col=z))+
   geom_point()+
-  scale_colour_viridis_c()
+  scale_colour_viridis_c()+
+  theme_dark()
+
+rr <- reshape2::melt(data[7326,])
+rr <- cbind(rr, rownames(rr))
+rr <- rr[-1,]
+ggplot(rr, aes(rr$`rownames(rr)`, rr$value))+
+  geom_point()+
+  geom_line()
