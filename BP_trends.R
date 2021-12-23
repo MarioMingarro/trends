@@ -22,6 +22,7 @@ data <- raster::extract(TXMC,
 
 rm(raster)
 rm(TXMC)
+rm(long_lat)
 
 n.cores <- parallel::detectCores() - 1
 my.cluster <- parallel::makeCluster(
