@@ -4,20 +4,38 @@ gc(reset=TRUE)
 source("Dependencies/Functions.R")
 
 # Maximun temperatura of the hottest month
-tic()
-TXMC <- raster::stack()
+
+TXMC <- raster::stack() # Crea objeto en formato stack para alamacenar los resultados obtenidos en el bucle
+
 for (i in 1901:2016){
-  raster <- raster::aggregate(raster::stack(list.files("B:/DATA/CHELSA/SPAIN/TMAX", pattern = paste0(i), full.names = TRUE)), 
-                              fact=10, fun=mean)
-  raster <- reclassify(raster, 
-                       c(-Inf, -999, NA))
-  raster <- calc(raster, 
-                 max)
-  TXMC <- raster::stack(TXMC, 
-                        raster)
+  raster <-list.files("B:/DATA/CHELSA/SPAIN/TMAX", 
+                      pattern = paste0(i),
+                      full.names = TRUE)   # Crea un vector con el nombre de los 12 raster de cada año
+  
+  raster <- raster::stack(raster)          # Carga y agrupa en un stack los 12 raster de cada año
+  
+  raster <- raster::aggregate(raster, 
+                              fact = 10, 
+                              fun = mean) # Cambia el tamaño de pixel x10 unidades basado en la media de los pixeles que contiene
+  
+  raster <- raster::reclassify(raster,
+                               c(-Inf,
+                                 -999, 
+                                 NA))    # Reclasifica el raster para convertir los datos no terrestres (-32000) en no data (NA)
+  
+  raster <- raster::calc(raster,
+                         max)            # Calcula para cada pixel el valor máximo de los 12 meses. Esto viene a ser la temperatura máxima 
+                                         # y como es por meses la temperatura máxima del mes mas cálido
+  
+  TXMC <- raster::stack(TXMC,
+                        raster)          # Unifica el objeto creado fuera del bucle con el creado a lo largo del bucle.
+                                
 }
-toc()
-names(TXMC) <- paste0("Y_", seq(1901, 2016, by = 1))
+# Al final del bucle tenemos el objeto TMXC con 117 rasters correspondientes a la temperatura máxima del mes más calido
+
+names(TXMC) <- paste0("Y_", seq(1901, 2016, by = 1)) #Cambiamos el nombre de los raster almacenados en el stack
+
+#----------------------------------------------------------------------
 
 long_lat <- rasterToPoints(TXMC[[1]], spatial = TRUE)
 data <- raster::extract(TXMC,
