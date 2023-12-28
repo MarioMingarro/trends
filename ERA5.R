@@ -49,7 +49,7 @@ eu <- vect("A:/ERA5_TEST/europe_r.shp")
 
 terra::ext(data) <- terra::ext(ocean)
 
-data <- terra::mask(data, eu)
+data <- terra::mask(data, land)
 data <- kkd[[c(1,2,3, 4, 5)]]
 
 data <- suppressWarnings(as.data.frame(data, xy = TRUE))
@@ -123,53 +123,50 @@ resultados <- cbind(data, res)
 
 unique(resultados$year_break)
 
-x2.df <- data.frame(x=resultados[,1], y=resultados[,2], resultados$P_total)
+x2.df <- data.frame(x=resultados[,1], y=resultados[,2], resultados$year_break)
 x2 <- rast(x2.df, type="xyz")
-
-plot(x2)
-sctest(qlr, type = "supF")
-plot(qlr)
-cusum <- efp(ylag0 ~ ylag1, type = "OLS-CUSUM", data = dat)
-plot(cusum)
+crs(x2)  <- "epsg:4326"
 
 
-plot(ss)
-ggplot(ss, aes(x=ss, y=value)) +
-  geom_line() + 
-  xlab("")
+# plotting ----
+r <- project(x2,"+proj=hatano", mask = TRUE)
 
 
-set.seed(123) 
-x1 <- arima.sim(model = list(ar = 0.9), n = 100)
-x2 <- arima.sim(model = list(ma = 0.1), n = 100)
-x3 <- arima.sim(model = list(ar = 0.5, ma = 0.3), n = 100)
+# Discretize for better plotting after projection
+g <- st_graticule(ndiscr = 500) |> st_transform(st_crs(r))
+border <- st_graticule() |>
+  st_bbox() |>
+  st_as_sfc() |>
+  st_transform(3857) |>
+  st_segmentize(500000) |>
+  st_transform(st_crs(r)) |>
+  st_cast("POLYGON")
 
-y <- c((1 + x1),
-       x2,
-       (0.5 - x3))
+# Get label placement,
+# This is the hardest part
+library(dplyr)
+labels_x_init <- g %>%
+  filter(type == "N") %>%
+  mutate(lab = paste0(degree, "°"))
 
-plot.ts(y)
-
-dat <- tibble(ylag0 = y,
-              ylag1 = lag(y)) %>%
-  drop_na()
-
-qlr <- Fstats(ylag0 ~ ylag1, data = dat)
-qlr <- Fstats(ylag0 ~ 1, data = dat)
-strucchange::breakpoints(qlr)
+labels_x <- st_as_sf(st_drop_geometry(labels_x_init), lwgeom::st_startpoint(labels_x_init))
 
 
+labels_y_init <- g %>%
+  filter(type == "E") %>%
+  mutate(lab = paste0(degree, "°"))
 
-qlr <- strucchange::Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
-bp <- strucchange::breakpoints(qlr)
-year_break <- strucchange::breakdates(bp)
-RSS <- bp$RSS
+labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labels_y_init))
 
-pre <- ss[1:bp$breakpoints]
-year_pre <- seq(1940, year_break, 1)
-lm_pre <- lm(pre ~ year_pre)
-P_pre <- round(lm_pre$coefficients[2],4)
-AIC_pre <- AIC(lm_pre)
-BIC_pre <- BIC(lm_pre)
-RSE_pre <- sqrt(deviance(lm_pre)/df.residual(lm_pre))
+
+# Plot
+ggplot() +
+  geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = 1) +
+  geom_sf(data = g, color = "lightgray") +
+  geom_spatraster(data = r) +
+  scale_fill_whitebox_c(palette = "viridi") +
+  geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
+  geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
+  theme_void() +
+  labs(x = "", y = "", fill = "Temp")
 
