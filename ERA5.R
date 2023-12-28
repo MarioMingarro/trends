@@ -49,7 +49,7 @@ eu <- vect("A:/ERA5_TEST/europe_r.shp")
 
 terra::ext(data) <- terra::ext(ocean)
 
-data <- terra::mask(data, land)
+data <- terra::mask(data, ocean)
 data <- kkd[[c(1,2,3, 4, 5)]]
 
 data <- suppressWarnings(as.data.frame(data, xy = TRUE))
@@ -119,11 +119,11 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
 
 parallel::stopCluster(cl = my.cluster)
 toc()
-resultados <- cbind(data, res)
+resultados_ocean <- cbind(data, res)
 
 unique(resultados$year_break)
-
-x2.df <- data.frame(x=resultados[,1], y=resultados[,2], resultados$year_break)
+write.csv2(resultados,"A:/ERA5_TEST/land_results.csv" )
+x2.df <- data.frame(x=resultados[,1], y=resultados[,2], resultados$RSE_pre)
 x2 <- rast(x2.df, type="xyz")
 crs(x2)  <- "epsg:4326"
 
