@@ -41,7 +41,17 @@ y <- y-273.15
 
 
 data <- c(x,y)
-data <- data[[c(1,2,3, 4, 5)]]
+crs(data)  <- "epsg:4326"
+
+land <- vect("A:/ERA5_TEST/ne_10m_land.shp")
+ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
+eu <- vect("A:/ERA5_TEST/europe_r.shp")
+
+terra::ext(data) <- terra::ext(ocean)
+
+data <- terra::mask(data, eu)
+data <- kkd[[c(1,2,3, 4, 5)]]
+
 data <- suppressWarnings(as.data.frame(data, xy = TRUE))
 
 
@@ -57,13 +67,13 @@ my.cluster <- parallel::makeCluster(
 )
 doParallel::registerDoParallel(cl = my.cluster)
 
-res <- foreach(i = 1:nrow(data), #  1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
+res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
                .combine = 'rbind'
 ) %dopar% {
-  ss <- as.vector(data[i,-1])
+  ss <- as.vector(data[i,-c(1,2)])
   ss <- ts(t(ss),
-           start = 1901,
-           end = 2016,
+           start = 1940,
+           end = 2022,
            frequency = 1)
   #year
   qlr <- strucchange::Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
@@ -72,7 +82,7 @@ res <- foreach(i = 1:nrow(data), #  1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(
   RSS <- bp$RSS
   
   pre <- ss[1:bp$breakpoints]
-  year_pre <- seq(1901, year_break, 1)
+  year_pre <- seq(1940, year_break, 1)
   lm_pre <- lm(pre ~ year_pre)
   P_pre <- round(lm_pre$coefficients[2],4)
   AIC_pre <- AIC(lm_pre)
@@ -81,7 +91,7 @@ res <- foreach(i = 1:nrow(data), #  1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(
   
   ##post
   post <- ss[bp$breakpoints:length(ss)]
-  year_post <- seq(year_break,2016,1)
+  year_post <- seq(year_break,2022,1)
   lm_post <- lm(post ~ year_post)
   P_post <- round(lm_post$coefficients[2],4)
   AIC_post <- AIC(lm_post)
@@ -89,7 +99,7 @@ res <- foreach(i = 1:nrow(data), #  1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(
   RSE_post <- sqrt(deviance(lm_post)/df.residual(lm_post))
   
   ##general
-  year_total <- seq(1901,2016,1)
+  year_total <- seq(1940,2022,1)
   lm_total <- lm(ss ~ year_total)
   P_total <- round(lm_total$coefficients[2],4)
   AIC_total <- AIC(lm_total)
@@ -109,5 +119,57 @@ res <- foreach(i = 1:nrow(data), #  1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(
 
 parallel::stopCluster(cl = my.cluster)
 toc()
+resultados <- cbind(data, res)
 
+unique(resultados$year_break)
+
+x2.df <- data.frame(x=resultados[,1], y=resultados[,2], resultados$P_total)
+x2 <- rast(x2.df, type="xyz")
+
+plot(x2)
+sctest(qlr, type = "supF")
+plot(qlr)
+cusum <- efp(ylag0 ~ ylag1, type = "OLS-CUSUM", data = dat)
+plot(cusum)
+
+
+plot(ss)
+ggplot(ss, aes(x=ss, y=value)) +
+  geom_line() + 
+  xlab("")
+
+
+set.seed(123) 
+x1 <- arima.sim(model = list(ar = 0.9), n = 100)
+x2 <- arima.sim(model = list(ma = 0.1), n = 100)
+x3 <- arima.sim(model = list(ar = 0.5, ma = 0.3), n = 100)
+
+y <- c((1 + x1),
+       x2,
+       (0.5 - x3))
+
+plot.ts(y)
+
+dat <- tibble(ylag0 = y,
+              ylag1 = lag(y)) %>%
+  drop_na()
+
+qlr <- Fstats(ylag0 ~ ylag1, data = dat)
+qlr <- Fstats(ylag0 ~ 1, data = dat)
+strucchange::breakpoints(qlr)
+
+
+
+qlr <- strucchange::Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
+bp <- strucchange::breakpoints(qlr)
+year_break <- strucchange::breakdates(bp)
+RSS <- bp$RSS
+
+pre <- ss[1:bp$breakpoints]
+year_pre <- seq(1940, year_break, 1)
+lm_pre <- lm(pre ~ year_pre)
+P_pre <- round(lm_pre$coefficients[2],4)
+AIC_pre <- AIC(lm_pre)
+BIC_pre <- BIC(lm_pre)
+RSE_pre <- sqrt(deviance(lm_pre)/df.residual(lm_pre))
 
