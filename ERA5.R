@@ -37,7 +37,7 @@ x <- tapp(a, "years", mean)
 x <- x-273.15
 y <- tapp(b, "years", mean)
 y <- y-273.15
-
+names(data)
 
 
 data <- c(x,y)
@@ -47,9 +47,9 @@ land <- vect("A:/ERA5_TEST/ne_10m_land.shp")
 ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
 eu <- vect("A:/ERA5_TEST/europe_r.shp")
 
-terra::ext(data) <- terra::ext(ocean)
+terra::ext(data) <- terra::ext(land)
 
-data <- terra::mask(data, ocean)
+data <- terra::mask(data, land)
 data <- kkd[[c(1,2,3, 4, 5)]]
 
 data <- suppressWarnings(as.data.frame(data, xy = TRUE))
@@ -122,8 +122,9 @@ toc()
 resultados_ocean <- cbind(data, res)
 
 unique(resultados$year_break)
-write.csv2(resultados,"A:/ERA5_TEST/land_results.csv" )
-x2.df <- data.frame(x=resultados[,1], y=resultados[,2], resultados$RSE_pre)
+write.csv2(resultados,"A:/ERA5_TEST/ocean_results.csv" )
+resultados_land_t <- read.csv2("A:/ERA5_TEST/land_results.csv")
+x2.df <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$P_pre)
 x2 <- rast(x2.df, type="xyz")
 crs(x2)  <- "epsg:4326"
 
@@ -163,6 +164,7 @@ labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labe
 ggplot() +
   geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = 1) +
   geom_sf(data = g, color = "lightgray") +
+  geom_sf(data=land, color = "lightgray")+
   geom_spatraster(data = r) +
   scale_fill_whitebox_c(palette = "viridi") +
   geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
@@ -170,3 +172,57 @@ ggplot() +
   theme_void() +
   labs(x = "", y = "", fill = "Temp")
 
+
+## Climate velocity ----
+library(VoCC)
+
+OST <- c(x,y)
+crs(OST)  <- "epsg:4326"
+OST <- OST[[1:2]]
+OST <- raster::stack(OST)
+names(OST)
+plot(OST)
+
+vt <- tempTrend(OST,
+                th = nlayers(OST))
+
+
+vg <- spatGrad(OST,
+               th = 0.0001,
+               projected = TRUE)
+
+gv <- gVoCC(vt, 
+            vg)
+
+vel <- gv[[1]]
+
+OST <- stack(list.files(path = "B:/CHELSA_DATA/TMED", pattern ='.tif', full.names = TRUE))
+OST <- sumSeries(OST, p = "1972-02/2019-12", yr0 = "1972-02-01", l = nlayers(OST),
+                 fun = function(x) colMeans(x, na.rm = TRUE), freqin = "months", freqout = "years")
+
+OST <- aggregate(OST[[1:50]], fact = 2) 
+res(OST)
+plot(OST[[c(1,2)]])
+OST <- stack(OST)
+plot(OST)
+## Climate velocity
+vt <- tempTrend(OST,
+                th = nlayers(OST))
+
+
+vg <- spatGrad(OST,
+               th = 0.0001,
+               projected = FALSE)
+
+writeRaster(vg[[1]], "B:/CHELSA_DATA/VOCC/TMED_gradient.tif")
+plot(vt[[1]])
+
+gv <- gVoCC(vt, 
+            vg) 
+
+vel <- gv[[1]]
+ang <- gv[[2]]
+
+plot(vel)
+
+resTime()
