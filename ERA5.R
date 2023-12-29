@@ -10,7 +10,7 @@ library(tictoc)
 library(doParallel)
 library(foreach)
 
-
+# DATA ----
 b <- rast("B:/A_DATA/ERA_5/ERA_5_2014_2015.nc")
 
 
@@ -47,16 +47,16 @@ land <- vect("A:/ERA5_TEST/ne_10m_land.shp")
 ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
 eu <- vect("A:/ERA5_TEST/europe_r.shp")
 
-terra::ext(data) <- terra::ext(land)
+terra::ext(data) <- terra::ext(ocean)
 
-data <- terra::mask(data, land)
-data <- kkd[[c(1,2,3, 4, 5)]]
-
-data <- suppressWarnings(as.data.frame(data, xy = TRUE))
+data <- terra::mask(data, eu)
 
 
+data <- as.data.frame(data, xy = TRUE)
 
 
+
+# ANALYSIS ----
 
 
 tic()
@@ -176,53 +176,83 @@ ggplot() +
 ## Climate velocity ----
 library(VoCC)
 
-OST <- c(x,y)
+OST <- data
 crs(OST)  <- "epsg:4326"
-OST <- OST[[1:2]]
-OST <- raster::stack(OST)
-names(OST)
-plot(OST)
 
-vt <- tempTrend(OST,
-                th = nlayers(OST))
+vel_result <- data.frame(matrix(0, ncol = 0, nrow = 1038240))
+
+vel_result <- as.data.frame(data, xy = TRUE)[,1:2]
+
+for(i in 1:3){#:nlyr(d)
+  
+  ia <- i+1
+  OST1 <- data[[i]]
+  OST2 <- data[[ia]]
+  OST <- c(OST1, OST2)
+  OST <- raster::stack(OST)
+  
+  vt <- tempTrend(OST,
+                  th = nlayers(OST))
+  
+  vg <- spatGrad(OST,
+                 th = 0.1,
+                 projected = FALSE)
+  
+  gv <- gVoCC(vt, 
+              vg)
+  
+  vel <- gv[[1]]
+  kk2 <- as.data.frame(vel, xy = T)
+  vel_result <- cbind(vel_result, kk2[,3])
+
+}
+
+colnames(vel_result) <- paste0("c(x,y,", names(data), " ")
+
+x2.df <- data.frame(x=kk[,1], y=kk[,2], kk$voccMag)
+x2 <- rast(x2.df, type="xyz")
+crs(x2)  <- "epsg:4326"
 
 
-vg <- spatGrad(OST,
-               th = 0.0001,
-               projected = TRUE)
-
-gv <- gVoCC(vt, 
-            vg)
-
-vel <- gv[[1]]
-
-OST <- stack(list.files(path = "B:/CHELSA_DATA/TMED", pattern ='.tif', full.names = TRUE))
-OST <- sumSeries(OST, p = "1972-02/2019-12", yr0 = "1972-02-01", l = nlayers(OST),
-                 fun = function(x) colMeans(x, na.rm = TRUE), freqin = "months", freqout = "years")
-
-OST <- aggregate(OST[[1:50]], fact = 2) 
-res(OST)
-plot(OST[[c(1,2)]])
-OST <- stack(OST)
-plot(OST)
-## Climate velocity
-vt <- tempTrend(OST,
-                th = nlayers(OST))
+# plotting ----
+r <- project(x2,"+proj=hatano", mask = TRUE)
 
 
-vg <- spatGrad(OST,
-               th = 0.0001,
-               projected = FALSE)
+# Discretize for better plotting after projection
+g <- st_graticule(ndiscr = 500) |> st_transform(st_crs(r))
+border <- st_graticule() |>
+  st_bbox() |>
+  st_as_sfc() |>
+  st_transform(3857) |>
+  st_segmentize(500000) |>
+  st_transform(st_crs(r)) |>
+  st_cast("POLYGON")
 
-writeRaster(vg[[1]], "B:/CHELSA_DATA/VOCC/TMED_gradient.tif")
-plot(vt[[1]])
+# Get label placement,
+# This is the hardest part
+library(dplyr)
+labels_x_init <- g %>%
+  filter(type == "N") %>%
+  mutate(lab = paste0(degree, "°"))
 
-gv <- gVoCC(vt, 
-            vg) 
+labels_x <- st_as_sf(st_drop_geometry(labels_x_init), lwgeom::st_startpoint(labels_x_init))
 
-vel <- gv[[1]]
-ang <- gv[[2]]
 
-plot(vel)
+labels_y_init <- g %>%
+  filter(type == "E") %>%
+  mutate(lab = paste0(degree, "°"))
 
-resTime()
+labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labels_y_init))
+
+
+# Plot
+ggplot() +
+  geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = 1) +
+  geom_sf(data = g, color = "lightgray") +
+  geom_sf(data=land, color = "lightgray")+
+  geom_spatraster(data = r) +
+  scale_fill_whitebox_c(palette = "viridi") +
+  geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
+  geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
+  theme_void() +
+  labs(x = "", y = "", fill = "Temp")
