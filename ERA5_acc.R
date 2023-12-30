@@ -3,15 +3,15 @@ library(sf)
 library(tidyverse)
 library(terra)
 library(lubridate) 
-
 library(readxl)
 library(strucchange)
 library(tictoc)
 library(doParallel)
 library(foreach)
+library(VoCC)
+library(tidyterra)
 
 # DATA ----
-
 a <- rast("B:/A_DATA/ERA_5/ERA_5_1940_1987.nc")
 b <- rast("B:/A_DATA/ERA_5/ERA_5_1988_2023.nc")
 b <- b[[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,
@@ -31,14 +31,16 @@ b <- b[[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,
           785,787,789,791,793,795,797,799,801,803,805,807,809,811,813,815,817,819,821,823,825,827,829,831,833,835,837,
           839)]]
 
-x <- tapp(a, "years", mean)
-x <- x-273.15
-y <- tapp(b, "years", mean)
-y <- y-273.15
+a <- tapp(a, "years", mean)
+a <- a-273.15
+b <- tapp(b, "years", mean)
+b <- b-273.15
 
+data <- c(a,b)
+data <- rotate(data)
 
-data <- c(x,y)
 crs(data)  <- "epsg:4326"
+
 
 land <- vect("A:/ERA5_TEST/ne_10m_land.shp")
 ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
@@ -46,88 +48,64 @@ ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
 
 terra::ext(data) <- terra::ext(ocean)
 
-data <- terra::mask(data, land)
+crs(data)  <- "epsg:4326"
+
+data_L <- terra::mask(data, land)
 
 
-data <- as.data.frame(data, xy = TRUE)
+
+## Climate velocity ----
 
 
+OST <- data
+crs(OST)  <- "epsg:4326"
 
-# ANALYSIS ----
+vel_result <- as.data.frame(data, xy = TRUE)[,1:2]
 
-
-tic()
-n.cores <- parallel::detectCores() - 2
-my.cluster <- parallel::makeCluster(
-  n.cores, 
-  type = "PSOCK"
-)
-doParallel::registerDoParallel(cl = my.cluster)
-
-res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
-               .combine = 'rbind'
-) %dopar% {
-  ss <- as.vector(data[i,-c(1,2)])
-  ss <- ts(t(ss),
-           start = 1940,
-           end = 2022,
-           frequency = 1)
-  #year
-  qlr <- strucchange::Fstats(ss ~ 1, data = ss) #Quandt Likelihood Ratio (QLR)
-  bp <- strucchange::breakpoints(qlr)
-  year_break <- strucchange::breakdates(bp)
-  RSS <- bp$RSS
+for(i in 1:4){ #:nlyr(d)
   
-  pre <- ss[1:bp$breakpoints]
-  year_pre <- seq(1940, year_break, 1)
-  lm_pre <- lm(pre ~ year_pre)
-  P_pre <- round(lm_pre$coefficients[2],4)
-  AIC_pre <- AIC(lm_pre)
-  BIC_pre <- BIC(lm_pre)
-  RSE_pre <- sqrt(deviance(lm_pre)/df.residual(lm_pre))
+  ia <- i+1
+  OST1 <- data[[i]]
+  OST2 <- data[[ia]]
+  OST <- c(OST1, OST2)
+  OST <- raster::stack(OST)
   
-  ##post
-  post <- ss[bp$breakpoints:length(ss)]
-  year_post <- seq(year_break,2022,1)
-  lm_post <- lm(post ~ year_post)
-  P_post <- round(lm_post$coefficients[2],4)
-  AIC_post <- AIC(lm_post)
-  BIC_post <- BIC(lm_post)
-  RSE_post <- sqrt(deviance(lm_post)/df.residual(lm_post))
+  vt <- tempTrend(OST,
+                  th = nlayers(OST))
   
-  ##general
-  year_total <- seq(1940,2022,1)
-  lm_total <- lm(ss ~ year_total)
-  P_total <- round(lm_total$coefficients[2],4)
-  AIC_total <- AIC(lm_total)
-  BIC_total <- BIC(lm_total)
-  RSE_total <- sqrt(deviance(lm_total)/df.residual(lm_total))
+  vg <- spatGrad(OST,
+                 th = 0.1,
+                 projected = FALSE)
   
-  # Test the null hypothesis that the annual temperature remains constant over the years
-  test <- strucchange::sctest(qlr, type = "supF")
-  F.sup <- test[1]
-  p.value <- test[2]
-  #sa.cusum <- strucchange::efp(ss ~ 1, data = ss, type = "OLS-CUSUM")
-  data.frame(year_break, RSS, F.sup, p.value, 
-             P_total, AIC_total, BIC_total, RSE_total,
-             P_pre, AIC_pre, BIC_pre,RSE_pre,
-             P_post,AIC_post, BIC_post, RSE_post)
+  gv <- gVoCC(vt, 
+              vg)
+  
+  vel <- gv[[1]]
+  kk2 <- as.data.frame(vel, xy = T)
+  vel_result <- cbind(vel_result, kk2[,3])
+  
 }
 
-parallel::stopCluster(cl = my.cluster)
-toc()
-resultados_ocean <- cbind(data, res)
+colnames(vel_result) <-  c("x", "y", names(data[[2:5]]))
 
-unique(resultados$year_break)
-write.csv2(resultados,"A:/ERA5_TEST/ocean_results.csv" )
-resultados_land_t <- read.csv2("A:/ERA5_TEST/land_results.csv")
-x2.df <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$P_pre)
+acc_result <- as.data.frame(data, xy = TRUE)[,1:2]
+for(i in 3:length(acc_result)){
+  ia <- i+1
+  acc <- (vel_result[,i]-vel_result[ia])/1
+  acc_result <- cbind(acc_result, acc)
+}
+
+x2.df <- data.frame(x=acc_result[,1], y=acc_result[,2], acc_result[,3])
 x2 <- rast(x2.df, type="xyz")
 crs(x2)  <- "epsg:4326"
+plot(x2)
 
+x2 <- terra::mask(x2, ocean)
+terra::ext(x2) <- terra::ext(ocean)
 
 # plotting ----
 r <- project(x2,"+proj=hatano", mask = TRUE)
+
 
 
 # Discretize for better plotting after projection
@@ -142,7 +120,7 @@ border <- st_graticule() |>
 
 # Get label placement,
 # This is the hardest part
-library(dplyr)
+
 labels_x_init <- g %>%
   filter(type == "N") %>%
   mutate(lab = paste0(degree, "°"))
@@ -161,8 +139,7 @@ labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labe
 ggplot() +
   geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = 1) +
   geom_sf(data = g, color = "lightgray") +
-  geom_sf(data=land, color = "lightgray")+
-  geom_spatraster(data = r) +
+  tidyterra::geom_spatraster(data = r) +
   scale_fill_whitebox_c(palette = "viridi") +
   geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
   geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
@@ -170,3 +147,4 @@ ggplot() +
   labs(x = "", y = "", fill = "Temp")
 
 
+plot(b)
