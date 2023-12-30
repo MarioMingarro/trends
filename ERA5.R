@@ -182,8 +182,8 @@ crs(OST)  <- "epsg:4326"
 vel_result <- data.frame(matrix(0, ncol = 0, nrow = 1038240))
 
 vel_result <- as.data.frame(data, xy = TRUE)[,1:2]
-
-for(i in 1:3){#:nlyr(d)
+#:nlyr(d)
+for(i in 1:2){
   
   ia <- i+1
   OST1 <- data[[i]]
@@ -206,8 +206,11 @@ for(i in 1:3){#:nlyr(d)
   vel_result <- cbind(vel_result, kk2[,3])
 
 }
+names(OST)
 
-colnames(vel_result) <- paste0("c(x,y,", names(data), " ")
+colnames(vel_result) <-  c("x", "y", names(data[[2:3]]))
+
+
 
 x2.df <- data.frame(x=kk[,1], y=kk[,2], kk$voccMag)
 x2 <- rast(x2.df, type="xyz")
