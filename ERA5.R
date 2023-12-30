@@ -3,15 +3,15 @@ library(sf)
 library(tidyverse)
 library(terra)
 library(lubridate) 
-
 library(readxl)
 library(strucchange)
 library(tictoc)
 library(doParallel)
 library(foreach)
+library(VoCC)
+library(tidyterra)
 
 # DATA ----
-
 a <- rast("B:/A_DATA/ERA_5/ERA_5_1940_1987.nc")
 b <- rast("B:/A_DATA/ERA_5/ERA_5_1988_2023.nc")
 b <- b[[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,
@@ -31,31 +31,35 @@ b <- b[[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,
           785,787,789,791,793,795,797,799,801,803,805,807,809,811,813,815,817,819,821,823,825,827,829,831,833,835,837,
           839)]]
 
-x <- tapp(a, "years", mean)
-x <- x-273.15
-y <- tapp(b, "years", mean)
-y <- y-273.15
+a <- tapp(a, "years", mean)
+a <- a-273.15
+b <- tapp(b, "years", mean)
+b <- b-273.15
 
+data <- c(a,b)
+data <- rotate(data)
 
-data <- c(x,y)
 crs(data)  <- "epsg:4326"
+
 
 land <- vect("A:/ERA5_TEST/ne_10m_land.shp")
 ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
-#eu <- vect("A:/ERA5_TEST/europe_r.shp")
+
 
 terra::ext(data) <- terra::ext(ocean)
 
+crs(data)  <- "epsg:4326"
+
+# Land 
 data <- terra::mask(data, land)
+# Ocean
+data <- terra::mask(data, ocean)
 
 
 data <- as.data.frame(data, xy = TRUE)
 
 
-
-# ANALYSIS ----
-
-
+# BP ANALYSIS ----
 tic()
 n.cores <- parallel::detectCores() - 2
 my.cluster <- parallel::makeCluster(
@@ -116,18 +120,23 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
 
 parallel::stopCluster(cl = my.cluster)
 toc()
-resultados_ocean <- cbind(data, res)
+resultados_land <- cbind(data, res)
 
 unique(resultados$year_break)
 write.csv2(resultados,"A:/ERA5_TEST/ocean_results.csv" )
 resultados_land_t <- read.csv2("A:/ERA5_TEST/land_results.csv")
-x2.df <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$P_pre)
-x2 <- rast(x2.df, type="xyz")
-crs(x2)  <- "epsg:4326"
 
 
-# plotting ----
-r <- project(x2,"+proj=hatano", mask = TRUE)
+
+
+
+
+# PLOTTING ----
+## Raster creation----
+r <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$P_pre)
+r <- rast(r.df, type="xyz")
+crs(r)  <- "epsg:4326"
+r <- project(r,"+proj=hatano", mask = TRUE)
 
 
 # Discretize for better plotting after projection
