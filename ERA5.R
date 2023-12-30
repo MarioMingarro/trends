@@ -11,8 +11,6 @@ library(doParallel)
 library(foreach)
 
 # DATA ----
-b <- rast("B:/A_DATA/ERA_5/ERA_5_2014_2015.nc")
-
 
 a <- rast("B:/A_DATA/ERA_5/ERA_5_1940_1987.nc")
 b <- rast("B:/A_DATA/ERA_5/ERA_5_1988_2023.nc")
@@ -37,7 +35,6 @@ x <- tapp(a, "years", mean)
 x <- x-273.15
 y <- tapp(b, "years", mean)
 y <- y-273.15
-names(data)
 
 
 data <- c(x,y)
@@ -45,11 +42,11 @@ crs(data)  <- "epsg:4326"
 
 land <- vect("A:/ERA5_TEST/ne_10m_land.shp")
 ocean <- vect("A:/ERA5_TEST/ne_10m_ocean.shp")
-eu <- vect("A:/ERA5_TEST/europe_r.shp")
+#eu <- vect("A:/ERA5_TEST/europe_r.shp")
 
 terra::ext(data) <- terra::ext(ocean)
 
-data <- terra::mask(data, eu)
+data <- terra::mask(data, land)
 
 
 data <- as.data.frame(data, xy = TRUE)
@@ -173,52 +170,6 @@ ggplot() +
   labs(x = "", y = "", fill = "Temp")
 
 
-## Climate velocity ----
-library(VoCC)
-
-OST <- data
-crs(OST)  <- "epsg:4326"
-
-vel_result <- data.frame(matrix(0, ncol = 0, nrow = 1038240))
-
-vel_result <- as.data.frame(data, xy = TRUE)[,1:2]
-#:nlyr(d)
-for(i in 1:2){
-  
-  ia <- i+1
-  OST1 <- data[[i]]
-  OST2 <- data[[ia]]
-  OST <- c(OST1, OST2)
-  OST <- raster::stack(OST)
-  
-  vt <- tempTrend(OST,
-                  th = nlayers(OST))
-  
-  vg <- spatGrad(OST,
-                 th = 0.1,
-                 projected = FALSE)
-  
-  gv <- gVoCC(vt, 
-              vg)
-  
-  vel <- gv[[1]]
-  kk2 <- as.data.frame(vel, xy = T)
-  vel_result <- cbind(vel_result, kk2[,3])
-
-}
-names(OST)
-
-colnames(vel_result) <-  c("x", "y", names(data[[2:3]]))
-
-
-
-x2.df <- data.frame(x=kk[,1], y=kk[,2], kk$voccMag)
-x2 <- rast(x2.df, type="xyz")
-crs(x2)  <- "epsg:4326"
-
-
-# plotting ----
-r <- project(x2,"+proj=hatano", mask = TRUE)
 
 
 # Discretize for better plotting after projection
@@ -234,6 +185,7 @@ border <- st_graticule() |>
 # Get label placement,
 # This is the hardest part
 library(dplyr)
+library(tidyterra)
 labels_x_init <- g %>%
   filter(type == "N") %>%
   mutate(lab = paste0(degree, "°"))
@@ -252,10 +204,10 @@ labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labe
 ggplot() +
   geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = 1) +
   geom_sf(data = g, color = "lightgray") +
-  geom_sf(data=land, color = "lightgray")+
-  geom_spatraster(data = r) +
+  tidyterra::geom_spatraster(data = r) +
   scale_fill_whitebox_c(palette = "viridi") +
   geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
   geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
   theme_void() +
   labs(x = "", y = "", fill = "Temp")
+
