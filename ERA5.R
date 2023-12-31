@@ -52,6 +52,7 @@ crs(data)  <- "epsg:4326"
 
 # Land 
 data <- terra::mask(data, land)
+
 # Ocean
 data <- terra::mask(data, ocean)
 
@@ -61,7 +62,7 @@ data <- as.data.frame(data, xy = TRUE)
 
 # BP ANALYSIS ----
 tic()
-n.cores <- parallel::detectCores() - 2
+n.cores <- parallel::detectCores() - 1
 my.cluster <- parallel::makeCluster(
   n.cores, 
   type = "PSOCK"
@@ -120,27 +121,47 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
 
 parallel::stopCluster(cl = my.cluster)
 toc()
-resultados_land <- cbind(data, res)
+resultados_ocean <- cbind(data, res)
 
 unique(resultados$year_break)
-write.csv2(resultados,"A:/ERA5_TEST/ocean_results.csv" )
-resultados_land_t <- read.csv2("A:/ERA5_TEST/land_results.csv")
+write.csv2(resultados_ocean,"A:/ERA5_RESULTS/land_results.csv" )
+resultados_land_t <- read.csv2("A:/ERA5_RESULTS/land_results.csv")
 
 
 
 
-
+colnames(resultados_land)
 
 # PLOTTING ----
+
+year_break
+RSS
+statistic
+p.value
+P_total
+AIC_total
+BIC_total
+RSE_total
+P_pre
+AIC_pre
+BIC_pre
+RSE_pre
+P_post
+AIC_post
+BIC_post
+RSE_post
+
+
 ## Raster creation----
-r <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$P_pre)
-r <- rast(r.df, type="xyz")
+r <- data.frame(x=resultados_land[,1], y=resultados_land[,2], resultados_land$RSE_total)
+r <- rast(r, type="xyz")
 crs(r)  <- "epsg:4326"
 r <- project(r,"+proj=hatano", mask = TRUE)
 
-
+plot(r)
 # Discretize for better plotting after projection
-g <- st_graticule(ndiscr = 500) |> st_transform(st_crs(r))
+g <- st_graticule(ndiscr = 1000) |> st_transform(st_crs(r))
+
 border <- st_graticule() |>
   st_bbox() |>
   st_as_sfc() |>
@@ -149,9 +170,7 @@ border <- st_graticule() |>
   st_transform(st_crs(r)) |>
   st_cast("POLYGON")
 
-# Get label placement,
-# This is the hardest part
-library(dplyr)
+# Labels
 labels_x_init <- g %>%
   filter(type == "N") %>%
   mutate(lab = paste0(degree, "°"))
@@ -168,7 +187,7 @@ labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labe
 
 # Plot
 ggplot() +
-  geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = 1) +
+  geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = .5) +
   geom_sf(data = g, color = "lightgray") +
   geom_sf(data=land, color = "lightgray")+
   geom_spatraster(data = r) +
@@ -176,6 +195,6 @@ ggplot() +
   geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
   geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
   theme_void() +
-  labs(x = "", y = "", fill = "Temp")
+  labs(x = "", y = "", fill = "RSE")
 
 

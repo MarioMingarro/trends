@@ -62,7 +62,7 @@ crs(OST)  <- "epsg:4326"
 
 vel_result <- as.data.frame(data, xy = TRUE)[,1:2]
 
-for(i in 1:4){ #:nlyr(d)
+for(i in 1:82){ #:nlyr(d)
   
   ia <- i+1
   OST1 <- data[[i]]
@@ -86,16 +86,22 @@ for(i in 1:4){ #:nlyr(d)
   
 }
 
-colnames(vel_result) <-  c("x", "y", names(data[[2:5]]))
+colnames(vel_result) <-  c("x", "y", names(data)[2:83])
+
+write.csv2(acc_result,"A:/ERA5_RESULTS/acc_result.csv")
+
 
 acc_result <- as.data.frame(data, xy = TRUE)[,1:2]
-for(i in 3:length(acc_result)){
+for(i in 3:83){
   ia <- i+1
   acc <- (vel_result[,i]-vel_result[ia])/1
   acc_result <- cbind(acc_result, acc)
 }
 
-x2.df <- data.frame(x=acc_result[,1], y=acc_result[,2], acc_result[,3])
+kk <- rowMeans(vel_result[3:84])
+vel_result <- cbind(vel_result, kk)
+
+x2.df <- data.frame(x=vel_result[,1], y=vel_result[,2], vel_result$)
 x2 <- rast(x2.df, type="xyz")
 crs(x2)  <- "epsg:4326"
 plot(x2)
