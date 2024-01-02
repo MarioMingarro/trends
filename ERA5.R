@@ -124,7 +124,7 @@ toc()
 resultados_ocean <- cbind(data, res)
 
 unique(resultados$year_break)
-write.csv2(resultados_ocean,"A:/ERA5_RESULTS/land_results.csv" )
+write.csv2(resultados_ocean,"A:/ERA5_RESULTS/ocean_results.csv" )
 resultados_land_t <- read.csv2("A:/ERA5_RESULTS/land_results.csv")
 
 
@@ -153,12 +153,12 @@ RSE_post
 
 
 ## Raster creation----
-r <- data.frame(x=resultados_land[,1], y=resultados_land[,2], resultados_land$RSE_total)
+r <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$RSE_post)
 r <- rast(r, type="xyz")
 crs(r)  <- "epsg:4326"
 r <- project(r,"+proj=hatano", mask = TRUE)
 
-plot(r)
+
 # Discretize for better plotting after projection
 g <- st_graticule(ndiscr = 1000) |> st_transform(st_crs(r))
 
