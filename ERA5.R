@@ -31,9 +31,9 @@ b <- b[[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,
           785,787,789,791,793,795,797,799,801,803,805,807,809,811,813,815,817,819,821,823,825,827,829,831,833,835,837,
           839)]]
 
-a <- tapp(a, "years", mean)
+a <- tapp(a, "years", max)
 a <- a-273.15
-b <- tapp(b, "years", mean)
+b <- tapp(b, "years", max)
 b <- b-273.15
 
 data <- c(a,b)
@@ -121,16 +121,15 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
 
 parallel::stopCluster(cl = my.cluster)
 toc()
+resultados_land <- cbind(data, res)
 resultados_ocean <- cbind(data, res)
 
-unique(resultados$year_break)
-write.csv2(resultados_ocean,"A:/ERA5_RESULTS/ocean_results.csv" )
+
+write.csv2(resultados_ocean,"A:/ERA5_RESULTS/ocean_results_max.csv" )
+
+
 resultados_land_t <- read.csv2("A:/ERA5_RESULTS/land_results.csv")
 
-
-
-
-colnames(resultados_land)
 
 # PLOTTING ----
 
@@ -152,10 +151,27 @@ BIC_post
 RSE_post
 
 
+
 ## Raster creation----
-r <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean$RSE_post)
-r <- rast(r, type="xyz")
-crs(r)  <- "epsg:4326"
+s <- c("year_break", "statistic", "p.value", "P_total", "RSE_total", "P_pre", "RSE_pre", "P_post", "RSE_post")
+f <- c("x", "y", "year_break", "statistic", "p.value", "P_total", "RSE_total", "P_pre", "RSE_pre", "P_post", "RSE_post")
+
+resultados_land <- subset(resultados_land, select=f)
+
+resultados_ocean <- subset(resultados_ocean, select=f)
+
+for (i in 1:length(s)){
+  ## Land
+  #r <- data.frame(x=resultados_land[,1], y=resultados_land[,2], resultados_land[i+2])
+  
+  ## Ocean 
+  r <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean[i+2])
+  
+  r <- rast(r, type="xyz")
+  crs(r)  <- "epsg:4326"
+  
+ writeRaster(r,paste0("A:/ERA5_RESULTS/RASTER/OCEAN/", s[i] ,"_max.tif" ))
+
 r <- project(r,"+proj=hatano", mask = TRUE)
 
 
@@ -185,8 +201,9 @@ labels_y_init <- g %>%
 labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labels_y_init))
 
 
+
 # Plot
-ggplot() +
+print(ggplot() +
   geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = .5) +
   geom_sf(data = g, color = "lightgray") +
   geom_sf(data=land, color = "lightgray")+
@@ -195,6 +212,8 @@ ggplot() +
   geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
   geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
   theme_void() +
-  labs(x = "", y = "", fill = "RSE")
+  labs(x = "", y = "", fill = "pvalue"))
 
+ggsave(paste0("A:/ERA5_RESULTS/PLOT/OCEAN/", s[i] ,"_max.jpeg" ), dpi = 600, width = 30, height = 30, units = "cm")
 
+}
