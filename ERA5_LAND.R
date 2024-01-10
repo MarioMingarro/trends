@@ -53,10 +53,6 @@ crs(data)  <- "epsg:4326"
 # Land 
 data <- terra::mask(data, land)
 
-# Ocean
-data <- terra::mask(data, ocean)
-
-
 data <- as.data.frame(data, xy = TRUE)
 
 
@@ -122,33 +118,30 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
 parallel::stopCluster(cl = my.cluster)
 toc()
 resultados_land <- cbind(data, res)
-resultados_ocean <- cbind(data, res)
 
 
-write.csv2(resultados_ocean,"A:/ERA5_RESULTS/ocean_results_max.csv" )
 
-
-resultados_land_t <- read.csv2("A:/ERA5_RESULTS/land_results.csv")
+write.csv2(resultados_land,"A:/ERA5_RESULTS/resultados_land_max.csv" )
 
 
 # PLOTTING ----
 
-year_break
-RSS
-statistic
-p.value
-P_total
-AIC_total
-BIC_total
-RSE_total
-P_pre
-AIC_pre
-BIC_pre
-RSE_pre
-P_post
-AIC_post
-BIC_post
-RSE_post
+#year_break
+#RSS
+#statistic
+#p.value
+#P_total
+#AIC_total
+#BIC_total
+#RSE_total
+#P_pre
+#AIC_pre
+#BIC_pre
+#RSE_pre
+#P_post
+#AIC_post
+#BIC_post
+#RSE_post
 
 
 
@@ -158,19 +151,14 @@ f <- c("x", "y", "year_break", "statistic", "p.value", "P_total", "RSE_total", "
 
 resultados_land <- subset(resultados_land, select=f)
 
-resultados_ocean <- subset(resultados_ocean, select=f)
 
 for (i in 1:length(s)){
   ## Land
-  #r <- data.frame(x=resultados_land[,1], y=resultados_land[,2], resultados_land[i+2])
-  
-  ## Ocean 
-  r <- data.frame(x=resultados_ocean[,1], y=resultados_ocean[,2], resultados_ocean[i+2])
-  
+  r <- data.frame(x=resultados_land[,1], y=resultados_land[,2], resultados_land[i+2])
   r <- rast(r, type="xyz")
   crs(r)  <- "epsg:4326"
   
- writeRaster(r,paste0("A:/ERA5_RESULTS/RASTER/OCEAN/", s[i] ,"_max.tif" ))
+ writeRaster(r,paste0("A:/ERA5_RESULTS/RASTER/LAND/", s[i] ,"_max.tif" ))
 
 r <- project(r,"+proj=hatano", mask = TRUE)
 
@@ -206,14 +194,13 @@ labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labe
 print(ggplot() +
   geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = .5) +
   geom_sf(data = g, color = "lightgray") +
-  geom_sf(data=land, color = "lightgray")+
   geom_spatraster(data = r) +
   scale_fill_whitebox_c(palette = "viridi") +
   geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
   geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
   theme_void() +
-  labs(x = "", y = "", fill = "pvalue"))
+  labs(x = "", y = "", fill = paste0(s[i])))
 
-ggsave(paste0("A:/ERA5_RESULTS/PLOT/OCEAN/", s[i] ,"_max.jpeg" ), dpi = 600, width = 30, height = 30, units = "cm")
+ggsave(paste0("A:/ERA5_RESULTS/PLOT/LAND/", s[i] ,"_max.jpeg" ), dpi = 600, width = 30, height = 30, units = "cm")
 
 }
