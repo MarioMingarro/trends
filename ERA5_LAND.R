@@ -37,8 +37,10 @@ crs(data)  <- "epsg:4326"
 
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
+
 data2 <- data
 data <- data[490481,]
+
 # BP ANALYSIS ----
 tic()
 n.cores <- parallel::detectCores() - 1
@@ -85,7 +87,7 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
   year_total <- seq(1940,2023,1)
   lm_total <- lm(ss ~ year_total)
   P_total <- round(lm_total$coefficients[2],4)
-  Pv_total <- round(summary(lm_post)$coefficients[2, 4],4)
+  Pv_total <- round(summary(lm_total)$coefficients[2, 4],4)
   AIC_total <- AIC(lm_total)
   BIC_total <- BIC(lm_total)
   RSE_total <- sqrt(deviance(lm_total)/df.residual(lm_total))
@@ -108,9 +110,7 @@ res <- cbind(data, res)
 resultados <- res
 
 
-a <- names(resultados)
-b <- unique(names(resultados))
-write.csv2(resultados_land,"D:/ERA_5_2024/resultados_ERA5_max2.csv" )
+write.csv2(res,"D:/ERA_5_2024/resultados_ERA5_max2.csv" )
 
 
 sig <- dplyr::filter(resultados, p.value <= 0.01)
@@ -138,9 +138,10 @@ sig <- dplyr::filter(resultados, resultados$ <= 0.01)
 
 
 ## Raster creation----
-s <- c("year_break", "statistic", "p.value", "P_total", "RSE_total", "P_pre", "RSE_pre", "P_post", "RSE_post")
-f <- c("x", "y", "year_break", "statistic", "p.value", "P_total", "RSE_total", "P_pre", "RSE_pre", "P_post", "RSE_post")
+s <- c("year_break", "statistic", "p.value", "P_total", "Pv_total", "RSE_total", "P_pre", "RSE_pre", "Pv_pre","P_post", "RSE_post", "Pv_post")
+f <- c("x", "y", "year_break", "statistic", "p.value", "P_total", "Pv_total", "RSE_total", "P_pre", "RSE_pre", "Pv_pre","P_post", "RSE_post", "Pv_post")
 
+resultados_land <-res
 resultados_land <- subset(sig, select=f)
 
 
