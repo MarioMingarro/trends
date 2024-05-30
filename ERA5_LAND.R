@@ -39,7 +39,48 @@ data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
 
 data2 <- data
+
 data <- data[490481,]
+
+
+data <- data2
+data <- data[292000,]
+
+ss <- as.vector(data[i,-c(1,2)])
+ss <- ts(t(ss),
+         start = 1940,
+         end = 2023,
+         frequency = 1)
+plot(ss)
+bp <- strucchange::breakpoints(ss ~ 1, data = ss)
+summary(bp)
+plot(bp)
+qlr <- strucchange::Fstats(ss ~ 1, data = ss, from = 0.03)
+strucchange::sctest(qlr, type = "supF")
+year_break <- strucchange::breakdates(bp)
+
+
+fs.nile <- Fstats(Nile ~ 1)
+plot(qlr, aveF = T)
+breakpoints(qlr)
+lines(bp)
+sctest(bp, type = "expF")
+length(year_break)
+
+intervals <- list(1:year_break[1], year_break[1]:year_break[2], year_break[2]:length(data))
+
+# Función para calcular la tendencia en un intervalo
+calculate_trend <- function(df, interval) {
+  subset_df <- df[interval, ]
+  model <- lm(value ~ year, data = subset_df)
+  summary(model)
+}
+
+# Calcular la tendencia para cada intervalo
+trends <- lapply(intervals, function(interval) calculate_trend(ss, interval))
+
+# Imprimir los resultados
+print(trends)
 
 # BP ANALYSIS ----
 tic()
@@ -58,10 +99,19 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
            start = 1940,
            end = 2023,
            frequency = 1)
+  plot(ss)
+  bp <- strucchange::breakpoints(ss ~ 1, data = ss)
+  summary(bp)
+  
   #year
-  qlr <- strucchange::Fstats(ss ~ 1, data = ss, from = 0.05) #Quandt Likelihood Ratio (QLR)
-  bp <- strucchange::breakpoints(qlr)
+  qlr <- strucchange::Fstats(ss ~ 1, data = ss, from = 0.03) #Quandt Likelihood Ratio (QLR)
+  
+  summary(qlr)
+  qlr$breakpoint
+  bp <- strucchange::breakpoints(ss ~ 1, data = ss)
   year_break <- strucchange::breakdates(bp)
+  summary(bp)
+  plot(bp)
   RSS <- bp$RSS
   
   pre <- ss[1:bp$breakpoints]
@@ -118,6 +168,18 @@ sig <- dplyr::filter(res, p.value <= 0.01 & Pv_pre <= 0.01)
 r <- data.frame(x=sig[,1], y=sig[,2], sig[97])
 rm(sig, res)
 gc(reset=T)
+
+sig <- dplyr::filter(res, p.value <= 0.01 & year_break <= 1943)
+
+sig <- sig[383,4:87]
+sig <- t(sig)
+sig <- cbind(sig, seq(1940, 2023, 1))
+sig <- as.data.frame(sig)
+colnames(sig) <- c("Temp", "Date")
+
+ggplot(sig, aes(x=Date, y = Temp))+
+  geom_point()+
+  geom_smooth(formula = y~x)
 
 
 r <- rast(r, type="xyz")
