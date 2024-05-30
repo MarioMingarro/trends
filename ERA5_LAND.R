@@ -112,9 +112,18 @@ resultados <- res
 
 write.csv2(res,"D:/ERA_5_2024/resultados_ERA5_max2.csv" )
 
+res <- read.csv2("D:/ERA_5_2024/resultados_ERA5_max2.csv")
 
-sig <- dplyr::filter(resultados, p.value <= 0.01)
-sig <- dplyr::filter(resultados, resultados$ <= 0.01)
+sig <- dplyr::filter(res, p.value <= 0.01 & Pv_pre <= 0.01)
+r <- data.frame(x=sig[,1], y=sig[,2], sig[97])
+rm(sig, res)
+gc(reset=T)
+
+
+r <- rast(r, type="xyz")
+crs(r)  <- "epsg:4326"
+
+writeRaster(r,paste0("D:/ERA_5_2024/MAPS/SIG/SIG_SIG/Trend_pre_sig_max.tif" ))
 
 # PLOTTING ----
 
