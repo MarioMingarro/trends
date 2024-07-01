@@ -8,13 +8,13 @@ library(strucchange)
 library(tictoc)
 library(doParallel)
 library(foreach)
-library(VoCC)
+#library(VoCC)
 library(tidyterra)
 
 rm(list=(ls()[ls()!="data"]))
 
 # DATA ----
-a <- rast("T:/ERA5_DATA/era5_1940_2023.nc")
+a <- rast("C:/A_TRABAJO/ERA5/ERA5_DATA/era5_1940_2023.nc")
 
 n_layers <- nlyr(a)
 
@@ -29,15 +29,13 @@ b <- b-273.15
 toc() # 15 sec
 
 
-
 data <- rotate(b)
-
 crs(data)  <- "epsg:4326"
-
 
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
 
+# TEST 
 data2 <- data
 
 data <- data[490481,]
@@ -46,8 +44,8 @@ data <- data[490481,]
 data <- data2
 data <- data[292000,]
 
-ss <- as.vector(data[i,-c(1,2)])
-ss <- ts(t(ss),
+ss <- as.numeric(data[1, -c(1, 2)])
+ss <- ts(ss,
          start = 1940,
          end = 2023,
          frequency = 1)
@@ -91,31 +89,25 @@ my.cluster <- parallel::makeCluster(
 )
 doParallel::registerDoParallel(cl = my.cluster)
 
-res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
+res <- foreach(i = c(1:10), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:7500 # 7500:nrow(data)
                .combine = 'rbind'
 ) %dopar% {
-  ss <- as.vector(data[i,-c(1,2)])
-  ss <- ts(t(ss),
+  ss <- as.numeric(data[i,-c(1,2)])
+  ss <- ts(ss,
            start = 1940,
            end = 2023,
            frequency = 1)
-  plot(ss)
   bp <- strucchange::breakpoints(ss ~ 1, data = ss)
   summary(bp)
   
   #year
   qlr <- strucchange::Fstats(ss ~ 1, data = ss, from = 0.03) #Quandt Likelihood Ratio (QLR)
-  
-  summary(qlr)
-  qlr$breakpoint
   bp <- strucchange::breakpoints(ss ~ 1, data = ss)
   year_break <- strucchange::breakdates(bp)
-  summary(bp)
-  plot(bp)
   RSS <- bp$RSS
   
   pre <- ss[1:bp$breakpoints]
-  year_pre <- seq(1940, year_break, 1)
+  year_pre <- seq(1940, year_break[1], 1)
   lm_pre <- lm(pre ~ year_pre)
   P_pre <- round(lm_pre$coefficients[2],4)
   Pv_pre <- round(summary(lm_pre)$coefficients[2, 4],4)
@@ -125,7 +117,7 @@ res <- foreach(i = c(1:nrow(data)), # 1:nrow(data) 1:2500  # 2500:5000 # 5000:75
   
   ##post
   post <- ss[bp$breakpoints:length(ss)]
-  year_post <- seq(year_break,2023,1)
+  year_post <- seq(year_break[1], 2023, 1)
   lm_post <- lm(post ~ year_post)
   P_post <- round(lm_post$coefficients[2],4)
   Pv_post <- round(summary(lm_post)$coefficients[2, 4],4)

@@ -19,6 +19,7 @@ crs(data) <- "epsg:4326"
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
 
+547045
 
 ##################
 res <- 
@@ -135,18 +136,36 @@ library(tidyterra)
 
 final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
 final <- final[,-1]
+df$Tem[df$Tem == "-9999"] <- "NA"
+final$year_break_1[final$year_break_1 == "999"] <- "NA"
 
-colnames(final)
-sig <- dplyr::filter(final, p_value <= 0.05 & Pv_pre_1 <= 0.05)
+##YEAR
 
 sig <- dplyr::filter(final, p_value <= 0.05)
 
-r <- data.frame(x=sig[,1], y=sig[,2], sig$year_break_5)
+r <- data.frame(x=sig[,1], y=sig[,2], sig$year_break_1)
 r <- rast(r, type="xyz")
 crs(r)  <- "epsg:4326"
-plot(r)
 
-writeRaster(r,"C:/A_TRABAJO/ERA5/year_5_sig.tif")
+writeRaster(r,"C:/A_TRABAJO/ERA5/year_1_sig.tif")
+
+## TREND
+sig <- dplyr::filter(final, p_value <= 0.05 & Pv_post_1 <= 0.05)
+
+r <- data.frame(x=sig[,1], y=sig[,2], sig$P_post_1)
+r <- rast(r, type="xyz")
+crs(r)  <- "epsg:4326"
+
+writeRaster(r,"C:/A_TRABAJO/ERA5/trend_post_1_sig.tif")
+
+sig <- dplyr::filter(final, Pv_total <= 0.05)
+r <- data.frame(x=sig[,1], y=sig[,2], sig$P_total)
+r <- rast(r, type="xyz")
+
+crs(r)  <- "epsg:4326"
+
+writeRaster(r,"C:/A_TRABAJO/ERA5/trend_total.tif")
+colnames(final)
 
 r <- project(r,"+proj=hatano", mask = TRUE)
 
