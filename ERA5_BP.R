@@ -44,15 +44,19 @@ cl <- makeCluster(numCores)
 registerDoParallel(cl)
 
 # Paralelizar el bucle for
-res <- foreach(p = 1:5, .combine = rbind, .packages = c("strucchange", "stats")) %dopar% {
+res <- foreach(p = 1:nrow(data), .combine = rbind, .packages = c("strucchange", "stats")) %dopar% {
   bp_analysis(p, data)
 }
 
 # Detener el clúster
 stopCluster(cl)
 
-final <- cbind(data[1:5,c(1,2)], res)
+final <- cbind(data[1:nrow(data),c(1,2)], res)
 
+writexl::write_xlsx(final, "C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.xlsx")
+write.csv2(final, "C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
+
+final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
 
 #######################################################
 #####FUNCION###################
@@ -113,5 +117,145 @@ bp_analysis <- function(i, data) {
   }
   
   return(as.data.frame(results))
+}
+
+
+
+#############################
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(raster)
+library(sf)
+library(tidyverse)
+library(terra)
+library(lubridate) 
+library(tidyterra)
+
+
+final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
+final <- final[,-1]
+
+colnames(final)
+sig <- dplyr::filter(final, p_value <= 0.05 & Pv_pre_1 <= 0.05)
+
+sig <- dplyr::filter(final, p_value <= 0.05)
+
+r <- data.frame(x=sig[,1], y=sig[,2], sig$year_break_5)
+r <- rast(r, type="xyz")
+crs(r)  <- "epsg:4326"
+plot(r)
+
+writeRaster(r,"C:/A_TRABAJO/ERA5/year_5_sig.tif")
+
+r <- project(r,"+proj=hatano", mask = TRUE)
+
+
+# Discretize for better plotting after projection
+g <- st_graticule(ndiscr = 1000) %>%  st_transform(st_crs(r))
+
+border <- st_graticule() %>% 
+  st_bbox()%>%
+  st_as_sfc()%>%
+  st_transform(3857)%>%
+  st_segmentize(500000)%>%
+  st_transform(st_crs(r))%>%
+  st_cast("POLYGON")
+
+# Labels
+labels_x_init <- g %>%
+  filter(type == "N") %>%
+  mutate(lab = paste0(degree, "°"))
+
+labels_x <- st_as_sf(st_drop_geometry(labels_x_init), lwgeom::st_startpoint(labels_x_init))
+
+
+labels_y_init <- g %>%
+  filter(type == "E") %>%
+  mutate(lab = paste0(degree, "°"))
+
+labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labels_y_init))
+
+
+
+# Plot
+ggplot() +
+        geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = .5) +
+        geom_sf(data = g, color = "lightgray") +
+        geom_spatraster(data = r) +
+        scale_fill_whitebox_c(palette = "viridi") +
+        geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
+        geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
+        theme_void()
+
+
+plot(r)
+
+
+
+
+
+
+
+
+## Raster creation----
+s <- c("year_break", "statistic", "p.value", "P_total", "Pv_total", "RSE_total", "P_pre", "RSE_pre", "Pv_pre","P_post", "RSE_post", "Pv_post")
+f <- c("x", "y", "year_break", "statistic", "p.value", "P_total", "Pv_total", "RSE_total", "P_pre", "RSE_pre", "Pv_pre","P_post", "RSE_post", "Pv_post")
+
+resultados_land <-res
+resultados_land <- subset(sig, select=f)
+
+
+for (i in 1:length(s)){
+  ## Land
+  r <- data.frame(x=resultados_land[,1], y=resultados_land[,2], resultados_land[i+2])
+  r <- rast(r, type="xyz")
+  crs(r)  <- "epsg:4326"
+  
+  writeRaster(r,paste0("D:/ERA_5_2024/MAPS/SIG/", s[i] ,"_max.tif" ))
+  
+  r <- project(r,"+proj=hatano", mask = TRUE)
+  
+  
+  # Discretize for better plotting after projection
+  g <- st_graticule(ndiscr = 1000) %>%  st_transform(st_crs(r))
+  
+  border <- st_graticule() %>% 
+    st_bbox()%>%
+    st_as_sfc()%>%
+    st_transform(3857)%>%
+    st_segmentize(500000)%>%
+    st_transform(st_crs(r))%>%
+    st_cast("POLYGON")
+  
+  # Labels
+  labels_x_init <- g %>%
+    filter(type == "N") %>%
+    mutate(lab = paste0(degree, "°"))
+  
+  labels_x <- st_as_sf(st_drop_geometry(labels_x_init), lwgeom::st_startpoint(labels_x_init))
+  
+  
+  labels_y_init <- g %>%
+    filter(type == "E") %>%
+    mutate(lab = paste0(degree, "°"))
+  
+  labels_y <- st_as_sf(st_drop_geometry(labels_y_init), lwgeom::st_startpoint(labels_y_init))
+  
+  
+  
+  # Plot
+  print(ggplot() +
+          geom_sf(data = border, fill = "azure", color = "lightgray", linewidth = .5) +
+          geom_sf(data = g, color = "lightgray") +
+          geom_spatraster(data = r) +
+          scale_fill_whitebox_c(palette = "viridi") +
+          geom_sf_text(data = labels_x, aes(label = lab), nudge_x = -1000000, size = 3) +
+          geom_sf_text(data = labels_y, aes(label = lab), nudge_y = -1000000, size = 3) +
+          theme_void() +
+          labs(x = "", y = "", fill = paste0(s[i])))
+  
+  ggsave(paste0("D:/ERA_5_2024/MAPS/SIG/", s[i] ,"_max.jpeg" ), dpi = 600, width = 30, height = 30, units = "cm")
+  
 }
 
