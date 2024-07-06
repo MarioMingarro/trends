@@ -25,12 +25,12 @@ final <- final[,-1]
 
 
 # Seleccionar caso especifico
-fila <- 189749
+fila <- 365220
 ss <-  data[fila,]
 tt <- final[fila,]
 
 #5 385341
-#4
+#4 365220
 #3 380883
 #2 32027 189749
 #1 13249  19698
@@ -131,7 +131,9 @@ tk <- ttheme_minimal(
   colhead=list(fg_params=list(col="gray30", fontface=4L)),
   rowhead=list(fg_params=list(col="gray50", fontface=3L)))
 table <- tableGrob(tt, theme = tk) 
-print(tt)
+
+
+
 ###### -----
 # Todos
 ggarrange(trend_plot, map,
