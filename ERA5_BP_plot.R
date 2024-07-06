@@ -1,3 +1,11 @@
+library(raster)
+library(terra)
+library(tidyverse)
+library(rnaturalearth)
+library(sf)
+library(ggpubr)
+library(gridExtra)
+
 a <- rast("C:/A_TRABAJO/ERA5/ERA5_DATA/era5_1940_2023.nc")
 n_layers <- nlyr(a)
 n_layers <- seq(1, n_layers, by = 2)
@@ -6,31 +14,39 @@ a <- a[[n_layers]]
 # Preprocesamiento de datos
 b <- terra::tapp(a, "years", max)
 b <- b - 273.15
-data <- rotate(b)
+data <- terra::rotate(b)
 crs(data) <- "epsg:4326"
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
+rm(a, b, n_layers)
 
-kk <- data[324911,]
+final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
+final <- final[,-1]
+
+
+# Seleccionar caso especifico
+fila <- 189749
+ss <-  data[fila,]
+tt <- final[fila,]
+
 #5 385341
 #4
-#3
-#2 324911
-#1 13249
-ss <- as.numeric(kk[, -c(1, 2)])
+#3 380883
+#2 32027 189749
+#1 13249  19698
+#0 396964
+###### -----
+ss <- as.numeric(ss[, -c(1, 2)])
 ss <- ts(ss, start = 1940, end = 2023, frequency = 1)
 
-
 n <- 2023 - 1940 + 1
-
 # Crear la serie de años
 years <- 1940:2023
 
 # Convertir la serie temporal en un data frame con años
 df <- data.frame(
   year = years,
-  value = ss
-)
+  value = ss)
 
 # Calcular los puntos de ruptura
 bp <- strucchange::breakpoints(ss ~ 1, data = ss)
@@ -39,49 +55,52 @@ bp <- strucchange::breakpoints(ss ~ 1, data = ss)
 breakpoints <- c(1, bp$breakpoints, n)
 
 # Crear un data frame para almacenar los valores ajustados
-df_fitted <- data.frame(year = numeric(), fitted_value = numeric())
+df_fitted <- data.frame(year = numeric(), fitted_value = numeric(), segment = numeric())
 
 # Ajustar un modelo lineal en cada segmento
 for (i in 1:(length(breakpoints) - 1)) {
   segment <- df %>%
     filter(year >= df$year[breakpoints[i]] & year <= df$year[breakpoints[i + 1]])
   
-  if(nrow(segment) > 0) {
+  if (nrow(segment) > 0) {
     model <- lm(value ~ year, data = segment)
     segment$fitted_value <- predict(model, newdata = segment)
+    segment$segment <- i  # Añadir una columna para identificar el segmento
     
     df_fitted <- rbind(df_fitted, segment)
   }
 }
 
 # Graficar la serie temporal y las líneas de ajuste con ggplot2
-pp <- ggplot(df, aes(x = year, y = value)) +
+trend_plot <- ggplot(df, aes(x = year, y = value)) +
   geom_line(color = "blue") +  # Serie temporal original
-  geom_line(data = df_fitted, aes(y = fitted_value), color = "red", size = 1.5) +  # Líneas de ajuste
+  geom_line(data = df_fitted, aes(y = fitted_value, group = segment), color = "red", size = 1.5, alpha = 0.5) +  # Líneas de ajuste por segmento
   theme_minimal() +
   labs(title = "Structural change",
        x = "Year",
        y = "T(ºC)")
 
-# Map----
-library(rnaturalearth)
-library(sf)
-library(ggpubr)
 
+# Map
 world <- rnaturalearth::ne_countries(scale = "small", returnclass = "sf")
+tt[,1:2] <- as.numeric(tt[,1:2])
+# Convertir el data frame del punto a un objeto sf
+tt_sf <- st_as_sf(tt, coords = c("x", "y"), crs = 4326)  # Suponiendo que las coordenadas están en WGS84 (EPSG:4326)
 
-pp2 <- world %>% st_transform(crs = "+proj=hatano") %>%
-  ggplot() + geom_sf() + theme_minimal()+
-  geom_point(data = kk, aes(x, y), col= "red", fill= "red",shape = 21, size = 2)+
-  labs(x=NULL, y = NULL)
+# Transformar el sistema de coordenadas del punto al mismo que el mapa del mundo
+tt_sf_transformed <- st_transform(tt_sf, crs = st_crs(world))
 
-ggarrange(pp, pp2,
-          tb)
+# Crear el mapa y agregar el punto transformado
+map <- ggplot() +
+  geom_sf(data = world) +
+  theme_minimal() +
+  geom_sf(data = tt_sf_transformed, col = "red", fill = "red", shape = 21, size = 2) +
+  labs(x = NULL, y = NULL)
 
-#tabla
-kk2 <- final[324911,]
 
-kk2_long <- kk2 %>%
+
+#Tabla
+tt <- tt %>%
   pivot_longer(
     cols = matches("year_break_\\d+|P_pre_\\d+|Pv_pre_\\d+|RSE_pre_\\d+|P_post_\\d+|Pv_post_\\d+|RSE_post_\\d+"),
     names_to = c("metric", "year_break"),
@@ -89,30 +108,34 @@ kk2_long <- kk2 %>%
   )
 
 # Ordenar el dataframe por x, y, year_break
-kk2_long <- kk2_long %>%
+tt <- tt %>%
   arrange(x, y, year_break)
-kk2_long <- kk2_long[, c(9,11)]
+tt <- tt[, c(9,11)]
 
-data <- kk2_long
 
 # Identificar los bloques por year_break
-data$group <- cumsum(data$metric == "year_break")
+tt$group <- cumsum(tt$metric == "year_break")
 
 # Filtrar y pivotear los datos
-kk2_wide <- data %>%
+tt <- tt %>%
   filter(!is.na(value)) %>%
   pivot_wider(names_from = metric, values_from = value, values_fill = NA) %>%
   select(-group)
 
-# Renombrar las columnas para claridad
-colnames(kk2_wide) <- paste0("year_", colnames(kk2_wide))
-
 # Ver el resultado
-res <- as.data.frame(t(kk2_wide))
+tt <- as.data.frame(t(tt))
+names(tt) <- gsub(x = names(tt), pattern = "V", replacement = "BP_")  
 
-
-tb<- tableGrob(res, rows = NULL, theme = ttheme("blank")) 
-
+tt[2:7,] <- round(tt[2:7,] ,4)
+tk <- ttheme_minimal(
+  colhead=list(fg_params=list(col="gray30", fontface=4L)),
+  rowhead=list(fg_params=list(col="gray50", fontface=3L)))
+table <- tableGrob(tt, theme = tk) 
+print(tt)
+###### -----
+# Todos
+ggarrange(trend_plot, map,
+          table)
 
 # Histogram -----
 final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")

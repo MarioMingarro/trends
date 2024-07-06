@@ -14,7 +14,7 @@ a <- a[[n_layers]]
 # Preprocesamiento de datos
 b <- terra::tapp(a, "years", max)
 b <- b - 273.15
-data <- rotate(b)
+data <- terra::rotate(b)
 crs(data) <- "epsg:4326"
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
