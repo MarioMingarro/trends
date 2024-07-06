@@ -58,7 +58,7 @@ writexl::write_xlsx(final, "C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.xlsx")
 write.csv2(final, "C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
 
 final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
-
+hist(final$n_years)
 #######################################################
 #####FUNCION###################
 bp_analysis <- function(i, data) {
@@ -136,7 +136,6 @@ library(tidyterra)
 
 final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
 final <- final[,-1]
-df$Tem[df$Tem == "-9999"] <- "NA"
 final$year_break_1[final$year_break_1 == "999"] <- "NA"
 
 ##YEAR

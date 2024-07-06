@@ -1,7 +1,17 @@
+a <- rast("C:/A_TRABAJO/ERA5/ERA5_DATA/era5_1940_2023.nc")
+n_layers <- nlyr(a)
+n_layers <- seq(1, n_layers, by = 2)
+a <- a[[n_layers]]
 
-kk <- final[385341,]
-writexl::write_xlsx(kk, "C:/A_TRABAJO/ERA5/kk_data.xlsx")
-kk <- data[385341,]
+# Preprocesamiento de datos
+b <- terra::tapp(a, "years", max)
+b <- b - 273.15
+data <- rotate(b)
+crs(data) <- "epsg:4326"
+data <- as.data.frame(data, xy = TRUE)
+data <- data[, -87]
+
+kk <- data[324911,]
 #5 385341
 #4
 #3
@@ -45,10 +55,109 @@ for (i in 1:(length(breakpoints) - 1)) {
 }
 
 # Graficar la serie temporal y las líneas de ajuste con ggplot2
-ggplot(df, aes(x = year, y = value)) +
+pp <- ggplot(df, aes(x = year, y = value)) +
   geom_line(color = "blue") +  # Serie temporal original
   geom_line(data = df_fitted, aes(y = fitted_value), color = "red", size = 1.5) +  # Líneas de ajuste
   theme_minimal() +
   labs(title = "Structural change",
        x = "Year",
        y = "T(ºC)")
+
+# Map----
+library(rnaturalearth)
+library(sf)
+library(ggpubr)
+
+world <- rnaturalearth::ne_countries(scale = "small", returnclass = "sf")
+
+pp2 <- world %>% st_transform(crs = "+proj=hatano") %>%
+  ggplot() + geom_sf() + theme_minimal()+
+  geom_point(data = kk, aes(x, y), col= "red", fill= "red",shape = 21, size = 2)+
+  labs(x=NULL, y = NULL)
+
+ggarrange(pp, pp2,
+          tb)
+
+#tabla
+kk2 <- final[324911,]
+
+kk2_long <- kk2 %>%
+  pivot_longer(
+    cols = matches("year_break_\\d+|P_pre_\\d+|Pv_pre_\\d+|RSE_pre_\\d+|P_post_\\d+|Pv_post_\\d+|RSE_post_\\d+"),
+    names_to = c("metric", "year_break"),
+    names_pattern = "(year_break|P_pre|Pv_pre|RSE_pre|P_post|Pv_post|RSE_post)_(\\d+)"
+  )
+
+# Ordenar el dataframe por x, y, year_break
+kk2_long <- kk2_long %>%
+  arrange(x, y, year_break)
+kk2_long <- kk2_long[, c(9,11)]
+
+data <- kk2_long
+
+# Identificar los bloques por year_break
+data$group <- cumsum(data$metric == "year_break")
+
+# Filtrar y pivotear los datos
+kk2_wide <- data %>%
+  filter(!is.na(value)) %>%
+  pivot_wider(names_from = metric, values_from = value, values_fill = NA) %>%
+  select(-group)
+
+# Renombrar las columnas para claridad
+colnames(kk2_wide) <- paste0("year_", colnames(kk2_wide))
+
+# Ver el resultado
+res <- as.data.frame(t(kk2_wide))
+
+
+tb<- tableGrob(res, rows = NULL, theme = ttheme("blank")) 
+
+
+# Histogram -----
+final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
+final <- final[,-1]
+sig <- dplyr::filter(final, p_value <= 0.05)
+sig$n_years[sig$n_years == "NA"] <- 0
+hist(sig$n_years)
+View(final)
+
+
+p1 <- hist(final$n_years)
+p2 <- hist(sig$n_years)
+plot( p1, col=rgb(0,0,1,1/4))
+plot( p2, col=rgb(1,0,0,1/4), add=T)
+
+options(scipen = 999)
+library(gridExtra)
+ggplot() + 
+  geom_histogram(data = final, aes(x = n_years), alpha = 0.3, fill = "red") +
+  geom_histogram(data = sig, aes(x = n_years), alpha = 0.3, fill ="blue") +
+  labs(x = "Number of breaking points", y= "Number of pixels")+
+  theme_bw()+
+  annotation_custom(tableGrob(kk), xmin=3, xmax=5, ymin=400000, ymax=600000)
+
+a <- final %>% 
+  group_by(n_years) %>% 
+  summarise(n = sum(n_years))
+
+b <- sig %>% 
+  group_by(n_years) %>% 
+  summarise(n = sum(n_years))
+
+kk <- cbind(a,b)
+kk <- kk[,-3]
+colnames(kk) <- c("n", "all", "sig")
+kk <- mutate(kk, dif = kk$all-kk$sig)
+kk <- kk[,-1]
+
+
+library(ggplot2)
+library(gridExtra)
+set.seed(1)
+mydata <- data.frame(a=1:50, b=rnorm(50))
+mytable <- cbind(sites=c("site 1","site 2","site 3","site 4"),mydata[10:13,])
+k <- ggplot(mydata,aes(x=a,y=b)) + 
+  geom_point(colour="blue") + 
+  geom_point(data=mydata[10:13, ], aes(x=a, y=b), colour="red", size=5) + 
+  annotation_custom(tableGrob(mytable), xmin=35, xmax=50, ymin=-2.5, ymax=-1)
