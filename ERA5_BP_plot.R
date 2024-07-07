@@ -25,7 +25,7 @@ final <- final[,-1]
 
 
 # Seleccionar caso especifico
-fila <- 365220
+fila <- 19698
 ss <-  data[fila,]
 tt <- final[fila,]
 
@@ -186,3 +186,26 @@ k <- ggplot(mydata,aes(x=a,y=b)) +
   geom_point(colour="blue") + 
   geom_point(data=mydata[10:13, ], aes(x=a, y=b), colour="red", size=5) + 
   annotation_custom(tableGrob(mytable), xmin=35, xmax=50, ymin=-2.5, ymax=-1)
+
+
+## TESTING -----
+fila <- 19698
+test <-  data[fila,]
+# Eliminar las primeras dos columnas del dataframe 'test'
+test <- test[,-c(1,2)]
+
+# Seleccionar las primeras 19 columnas del dataframe 'test'
+test2 <- test[,40:52]
+
+# Crear un vector con los años de 1940 a 1958
+year <- seq(1979, 1991, 1)
+
+# Asegurarse de que 'test2' tiene los nombres de fila adecuados
+rownames(test2) <- NULL
+
+# Unir el dataframe 'test2' con el vector 'year' como una nueva columna
+test2 <- as.data.frame(t(rbind(test2, year)))
+
+k <- lm(V1~V2, data = test2)
+summary(k)
+writexl::write_xlsx(test, "C:/A_TRABAJO/ERA5/kkdvk2.xlsx")
