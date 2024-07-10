@@ -25,7 +25,7 @@ final <- final[,-1]
 
 
 # Seleccionar caso especifico
-fila <- 622977
+fila <- 189749
 ss <-  data[fila,]
 tt <- final[fila,]
 

@@ -1,14 +1,16 @@
-i <- 622977
+fila <- 189749
+ss <-  data[fila,]
+
+# BP_funcion
 bp_analysis(1, ss)
 
-fila <- 622977
-ss <-  data[fila,]
+#Manual
 ss <- rbind(ss[,3:86], "year"= seq(1940, 2023, 1))
 ss <- as.data.frame(t(ss))
 colnames(ss) <- c("temp", "year")
 
-aa <- dplyr::filter(ss, ss$year<=1976)
-aa <- dplyr::filter(aa, year<=1996)
+aa <- dplyr::filter(ss, year>=1970)
+aa <- dplyr::filter(aa, year<=1989)
 lm <- lm(temp ~ year, data=aa)
 summary(lm)
 
