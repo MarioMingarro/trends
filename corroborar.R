@@ -9,7 +9,7 @@ ss <- rbind(ss[,3:86], "year"= seq(1940, 2023, 1))
 ss <- as.data.frame(t(ss))
 colnames(ss) <- c("temp", "year")
 
-aa <- dplyr::filter(ss, year>=1970)
+aa <- dplyr::filter(ss, year>=1989)
 aa <- dplyr::filter(aa, year<=1989)
 lm <- lm(temp ~ year, data=aa)
 summary(lm)
