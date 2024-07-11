@@ -122,10 +122,11 @@ bp_analysis <- function(i, data) {
 #14 P_pre_1
 #17 P_post_1
 r <- dplyr::filter(final, p_value <= 0.05 & Pv_post_1 <= 0.05)
-r <- data.frame(x=r[,1], y=r[,2], r[17])
+r <- dplyr::filter(final, p_value >= 0.05 & Pv_total <= 0.05)
+r <- data.frame(x=r[,1], y=r[,2], r[11])
 
 r <- rast(r, type="xyz")
 crs(r)  <- "epsg:4326"
 
-writeRaster(r,"C:/A_TRABAJO/ERA5/RASTER/Trend_post_1_sig.tif")
+writeRaster(r,"C:/A_TRABAJO/ERA5/RASTER/Trend_total_noBP_sig.tif")
 
