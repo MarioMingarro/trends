@@ -19,7 +19,7 @@ crs(data) <- "epsg:4326"
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
 
-
+write.csv2(final2, "C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023.csv")
 ##################
 res <- 
   data.frame(

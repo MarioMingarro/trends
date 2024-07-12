@@ -22,8 +22,8 @@ rm(a, b, n_layers)
 
 final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
 final <- final[,-1]
-
-
+final2 <- final[,-c(20,21,22,26,27,28,32,33,34,38,39,40)]
+colnames(final2)
 # Seleccionar caso especifico
 
 fila <- 189749
