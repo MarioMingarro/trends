@@ -19,8 +19,6 @@ crs(data) <- "epsg:4326"
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
 
-data2 <- data
-data <- data2[c(1:10, 598374:598394),]
 
 ##################
 res <- 
@@ -57,6 +55,7 @@ stopCluster(cl)
 
 final <- cbind(data[1:nrow(data),c(1,2)], res)
 
+write.csv2(final, "C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023_3.csv")
 
 bp_analysis <- function(i, data) {
   ss <- as.numeric(data[i, -c(1, 2)])
@@ -123,5 +122,3 @@ bp_analysis <- function(i, data) {
 }
 
 
-kk <- data2[,c(1,2)]
-write.csv2(kk, "C:/A_TRABAJO/ERA5/ERA5_DATA/centroides_ERA5.csv")
