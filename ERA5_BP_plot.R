@@ -20,7 +20,7 @@ data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
 rm(a, b, n_layers)
 
-final <- read.csv2("C:/A_TRABAJO/ERA5/RESULT_ERA5_1940_2023.csv")
+final <- read.csv2("C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023_3.csv")
 final <- final[,-1]
 final2 <- final[,-c(20,21,22,26,27,28,32,33,34,38,39,40)]
 colnames(final2)
@@ -261,3 +261,77 @@ ggplot(ts_data, aes(x = time, y = value)) +
        y = "Valor",
        color = "Segmento") +
   theme_minimal()
+
+
+
+####### BIVARIATE ----
+library(readr)
+library(ggplot2)
+library(viridis)
+library(dplyr)
+centroides_ERA5_LAND <- read_delim("C:/A_TRABAJO/ERA5/centroides_ERA5_LAND.txt", 
+                                   delim = ";", escape_double = FALSE, locale = locale(decimal_mark = ",", 
+                                                                                       grouping_mark = ""), trim_ws = TRUE)
+kk <- centroides_ERA5_LAND$P_LAND
+pp <- cbind(data, kk)
+
+
+centroides <- pp[,c(1,2,87)]
+centroides[is.na(centroides)] <- 0
+colnames(centroides) <- c("x", "y", "area")
+ggplot(centroides, aes(x=x, y = y, col = kk))+
+  geom_point()
+
+final <- read.csv2("C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023_3.csv")
+final <- final[,-1]
+
+
+ggplot(final, aes(x=x, y = y, col = tmed_total))+
+  geom_point()+
+  scale_color_viridis()
+
+
+
+sig <- dplyr::filter(final, p_value <= 0.05)
+
+aa <- final %>%
+  mutate(
+    Pre_1_C = ifelse(Pv_pre_1 < 0.01, ifelse(P_pre_1 > 0, 1, -1), 0),
+    Post_1_C = ifelse(Pv_post_1 < 0.01, ifelse(P_post_1 > 0, 1, -1), 0),
+    Post_2_C = ifelse(Pv_post_2 < 0.01, ifelse(P_post_2 > 0, 1, -1), 0),
+    Post_3_C = ifelse(Pv_post_3 < 0.01, ifelse(P_post_3 > 0, 1, -1), 0),
+    Post_4_C = ifelse(Pv_post_4 < 0.01, ifelse(P_post_4 > 0, 1, -1), 0),
+    Post_5_C = ifelse(Pv_post_5 < 0.01, ifelse(P_post_5 > 0, 1, -1), 0)
+  )
+neon_harv <- bi_class(aa, x = Pre_1_C, y = Post_1_C, style = "quantile")
+
+world <- rnaturalearth::ne_countries(scale = "small", returnclass = "sf")
+
+
+map <- ggplot() +
+  geom_raster(data = neon_harv, aes(x = x, y = y, fill = bi_class)) +  # Capa raster
+  geom_sf(data = world, fill = NA, color = "black", size = 0.5) +  # Bordes del mapa del mundo
+  bi_scale_fill(pal = "PinkGrn") +
+  coord_sf() +  # Cambiar a coord_sf() para compatibilidad con geom_sf()
+  labs(
+    x = "",
+    y = ""
+  ) +
+  bi_theme(base_size = 2) +
+  theme(legend.position = "none")
+
+legend <- bi_legend(pal = "PinkGrn",
+                    xlab = "-1       0       1",
+                    ylab = "-1       0       1",
+                    size = 10)
+library(cowplot) 
+library(biscale)
+## construct final plot
+finalPlot <-  plot_grid(
+  map, legend,
+  rel_widths = c(1, .2),
+  nrow = 1
+)
+
+## print final plot
+finalPlot
