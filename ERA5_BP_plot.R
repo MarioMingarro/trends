@@ -5,6 +5,7 @@ library(rnaturalearth)
 library(sf)
 library(ggpubr)
 library(gridExtra)
+library(biscale)
 
 a <- rast("C:/A_TRABAJO/ERA5/ERA5_DATA/era5_1940_2023.nc")
 n_layers <- nlyr(a)
@@ -157,8 +158,8 @@ bic <- dplyr::mutate(bic, "breaks" = rownames(bic))
 
 table_bic <- tableGrob(round(bic[,c(2,1)],4), theme = tk) 
 
-###### -----
-# Todos
+
+# Todos----
 ggarrange(trend_plot, table_bic, map,
           table)
 
@@ -269,6 +270,7 @@ library(readr)
 library(ggplot2)
 library(viridis)
 library(dplyr)
+library(ggpubr)
 centroides_ERA5_LAND <- read_delim("C:/A_TRABAJO/ERA5/centroides_ERA5_LAND.txt", 
                                    delim = ";", escape_double = FALSE, locale = locale(decimal_mark = ",", 
                                                                                        grouping_mark = ""), trim_ws = TRUE)
@@ -284,15 +286,35 @@ ggplot(centroides, aes(x=x, y = y, col = kk))+
 
 final <- read.csv2("C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023_3.csv")
 final <- final[,-1]
+final[final == 999] <- NA
+
+# Punto ruptura
+ggplot()+
+  geom_point(data = final, aes(x = x, y = y, col = year_break_1))+
+  geom_sf(data = world, fill = NA, color = "white", size = 0.5) +  # Bordes del mapa del mundo
+  labs(x="", y = "", color='First BP Year')+
+  scale_color_viridis(option="plasma")
 
 
-ggplot(final, aes(x=x, y = y, col = tmed_total))+
-  geom_point()+
-  scale_color_viridis()
 
+# Años vs tmed ----
+dd <- final[,c(8,44)]
 
+ggplot(dd, aes(x = factor(n_years), y = tmed_total)) +
+  geom_boxplot() +
+  labs(title = "Average temperature and structural change number", 
+       subtitle = "Comparison of statistics using the Wilcoxon test",
+       x = "Nº of structural change", 
+       y = "T (ºC)") +
+  theme_bw()+
+  stat_compare_means(method = "wilcox.test", label = "p.signif", 
+                     comparisons = list(c("1", "2"), c("1", "3"), c("1", "4"), c("1", "5"),
+                                        c("2", "3"), c("2", "4"), c("2", "5"),
+                                        c("3", "4"), c("3", "5"), c("4", "5")))
 
-sig <- dplyr::filter(final, p_value <= 0.05)
+# Mapa bivariante ----
+library(cowplot) 
+world <- rnaturalearth::ne_countries(scale = "small", returnclass = "sf")
 
 aa <- final %>%
   mutate(
@@ -303,15 +325,19 @@ aa <- final %>%
     Post_4_C = ifelse(Pv_post_4 < 0.01, ifelse(P_post_4 > 0, 1, -1), 0),
     Post_5_C = ifelse(Pv_post_5 < 0.01, ifelse(P_post_5 > 0, 1, -1), 0)
   )
-neon_harv <- bi_class(aa, x = Pre_1_C, y = Post_1_C, style = "quantile")
+aa <- bi_class(aa, x = Pre_1_C, y = Post_1_C, style = "quantile")
+aa <- bi_class(aa, x = Post_4_C, y = Post_5_C, style = "quantile")
 
-world <- rnaturalearth::ne_countries(scale = "small", returnclass = "sf")
+bb <- aa %>% 
+  dplyr::group_by(aa$bi_class) %>% 
+  summarise(n())
+
 
 
 map <- ggplot() +
-  geom_raster(data = neon_harv, aes(x = x, y = y, fill = bi_class)) +  # Capa raster
+  geom_raster(data = aa, aes(x = x, y = y, fill = bi_class)) +  # Capa raster
   geom_sf(data = world, fill = NA, color = "black", size = 0.5) +  # Bordes del mapa del mundo
-  bi_scale_fill(pal = "PinkGrn") +
+  bi_scale_fill(pal = "DkViolet") +
   coord_sf() +  # Cambiar a coord_sf() para compatibilidad con geom_sf()
   labs(
     x = "",
@@ -320,18 +346,62 @@ map <- ggplot() +
   bi_theme(base_size = 2) +
   theme(legend.position = "none")
 
-legend <- bi_legend(pal = "PinkGrn",
+legend <- bi_legend(pal = "DkViolet",
                     xlab = "-1       0       1",
                     ylab = "-1       0       1",
                     size = 10)
-library(cowplot) 
-library(biscale)
+
 ## construct final plot
 finalPlot <-  plot_grid(
-  map, legend,
-  rel_widths = c(1, .2),
+  map, legend,table,
+  rel_widths = c(1, .2, .6),
   nrow = 1
 )
 
 ## print final plot
 finalPlot
+
+
+
+aa <- final %>%
+  mutate(
+    Pre_1_C = ifelse(Pv_pre_1 < 0.01, ifelse(P_pre_1 > 0, 1, -1), 0),
+    Post_1_C = ifelse(Pv_post_1 < 0.01, ifelse(P_post_1 > 0, 1, -1), 0),
+    Post_2_C = ifelse(Pv_post_2 < 0.01, ifelse(P_post_2 > 0, 1, -1), 0),
+    Post_3_C = ifelse(Pv_post_3 < 0.01, ifelse(P_post_3 > 0, 1, -1), 0),
+    Post_4_C = ifelse(Pv_post_4 < 0.01, ifelse(P_post_4 > 0, 1, -1), 0),
+    Post_5_C = ifelse(Pv_post_5 < 0.01, ifelse(P_post_5 > 0, 1, -1), 0)
+  )
+aa1 <- bi_class(aa, x = Pre_1_C, y = Post_1_C, style = "quantile")
+aa2 <- bi_class(aa, x = Post_1_C, y = Post_2_C, style = "quantile")
+aa3 <- bi_class(aa, x = Post_2_C, y = Post_3_C, style = "quantile")
+aa4 <- bi_class(aa, x = Post_3_C, y = Post_4_C, style = "quantile")
+aa5 <- bi_class(aa, x = Post_4_C, y = Post_5_C, style = "quantile")
+
+bb1 <- aa1 %>% 
+  dplyr::group_by("class" = bi_class) %>% 
+  summarise(n())
+bb2 <- aa2 %>% 
+  dplyr::group_by("class" = bi_class) %>% 
+  summarise(n())
+bb3 <- aa3 %>% 
+  dplyr::group_by("class" = bi_class) %>% 
+  summarise(n())
+bb4 <- aa4 %>% 
+  dplyr::group_by("class" = bi_class) %>% 
+  summarise(n())
+bb5 <- aa5 %>% 
+  dplyr::group_by("class" = bi_class) %>% 
+  summarise(n())
+
+table1 <- tableGrob(bb1, theme = tk) 
+table2 <- tableGrob(bb2, theme = tk)
+table3 <- tableGrob(bb3, theme = tk)
+table4 <- tableGrob(bb4, theme = tk)
+table5 <- tableGrob(bb5, theme = tk)
+
+tk <- ttheme_minimal(
+  colhead=list(fg_params=list(col="gray30", fontface=2L,fontsize= 8)),
+  rowhead=list(fg_params=list(col="gray50", fontface=2L,fontsize= 8)),
+  core=list(fg_params=list(fontface=3, fontsize= 8)))
+ggpubr::ggarrange(table1, table2,table3, table4,table5, ncol = 3, nrow = 2)
