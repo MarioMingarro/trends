@@ -23,6 +23,13 @@ rm(a, b, n_layers)
 
 final <- read.csv2("C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023_3.csv")
 final <- final[,-1]
+kk <- filter(final, final$year_break_1 == 999)
+kk <- filter(final, p_value >= 0.01)
+kk <- filter(kk, year_break_1 != 999)
+
+
+min(kk$p_value)
+
 final2 <- final[,-c(20,21,22,26,27,28,32,33,34,38,39,40)]
 colnames(final2)
 # Seleccionar caso especifico
@@ -315,6 +322,12 @@ ggplot(dd, aes(x = factor(n_years), y = tmed_total)) +
 # Mapa bivariante ----
 library(cowplot) 
 world <- rnaturalearth::ne_countries(scale = "small", returnclass = "sf")
+# bonferroni pvalor/todos ----
+final <- read.csv2("C:/A_TRABAJO/ERA5/RES_ERA5_1940_2023_3.csv")
+final <- final[,-1]
+final[final == 999] <- NA
+
+
 
 aa <- final %>%
   mutate(
@@ -325,6 +338,30 @@ aa <- final %>%
     Post_4_C = ifelse(Pv_post_4 < 0.01, ifelse(P_post_4 > 0, 1, -1), 0),
     Post_5_C = ifelse(Pv_post_5 < 0.01, ifelse(P_post_5 > 0, 1, -1), 0)
   )
+
+
+## PLOT temperatura entre post y pre 
+# Filtrar por clases de tendencias pre y post y mapearlas
+kk <- filter(aa, aa$Pre_1_C == 0 & aa$Post_1_C == 0)
+pp <- kk %>% mutate(diff = kk$tmed_post_1 - kk$tmed_pre_1)
+pp <- filter(pp, year_break_1 >= 2000 & year_break_1 <= 2010)
+
+ggplot() +
+  geom_raster(data = pp, aes(x = x, y = y, fill = diff)) +  # Capa raster
+  geom_sf(data = world, fill = NA, color = "black", size = 0.5)+
+  scico::scale_fill_scico(palette = "vik")+
+  labs(fill = "dT(ºC)",
+       x = "",
+       y = "")+
+  ggtitle("2000-2010")+
+  theme_dark()
+
+ggplot() +
+  geom_point(data = pp, aes(x = pp$year_break_1, y = pp$diff, col = pp$y))+
+  viridis::scale_color_viridis()
+
+
+
 aa <- bi_class(aa, x = Pre_1_C, y = Post_1_C, style = "quantile")
 aa <- bi_class(aa, x = Post_4_C, y = Post_5_C, style = "quantile")
 

@@ -37,7 +37,6 @@ res <-
 res <- res[-1,]
 
 
-
 # Detectar el número de núcleos disponibles en tu máquina
 numCores <- detectCores()
 
