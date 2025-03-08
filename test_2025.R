@@ -289,3 +289,38 @@ countries = world_map %>%
   geom_sf(data = world_map) +
   coord_map("moll")
   
+  
+  
+  
+  color_palette <- c(
+    "1_verde_claro" = "#73ae80",
+    "2_verde_medio" = "#5a9178",
+    "3_verde_oscuro" = "#2a5a5b",
+    "1_gris_claro" = "#b8d6be",
+    "2_gris_medio" = "#90b2b3",
+    "3_azul_grisaceo" = "#567994",
+    "1_gris_muy_claro" = "#e8e8e8",
+    "2_azul_claro" = "#b5c0da",
+    "3_azul_oscuro" = "#6c83b5"
+  )
+  
+  # Función para convertir hexadecimal a RGB
+  hex_to_rgb <- function(hex) {
+    hex <- gsub("#", "", hex)
+    r <- as.numeric(paste0("0x", substr(hex, 1, 2)))
+    g <- as.numeric(paste0("0x", substr(hex, 3, 4)))
+    b <- as.numeric(paste0("0x", substr(hex, 5, 6)))
+    return(c(r, g, b))
+  }
+  
+  # Convertir todos los colores a RGB
+  rgb_palette <- lapply(color_palette, hex_to_rgb)
+  
+  # Crear un data frame con los valores RGB
+  rgb_df <- data.frame(matrix(unlist(rgb_palette), nrow = length(rgb_palette), byrow = TRUE))
+  colnames(rgb_df) <- c("R", "G", "B")
+  
+  
+  # Crear el archivo .txt
+  write.table(rgb_df, "C:/A_TRABAJO/A_JORGE/ERA5/ERA5_RESULTS/mi_rampa_colores.txt", sep = " ", row.names = FALSE, col.names = FALSE)
+  
