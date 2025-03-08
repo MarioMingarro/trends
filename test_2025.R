@@ -18,42 +18,85 @@ res[res == 999] <- NA
 res <- sf::st_as_sf(res, coords = c("x", "y"), crs = 4326)
 res <- st_transform(res, crs = "+proj=robin")
 
+
 res <- res %>%
-  mutate(x = st_coordinates(.)[, "X"], 
-         y = st_coordinates(.)[, "Y"],
+  mutate(
+    x = st_coordinates(.)[, "X"],
+    y = st_coordinates(.)[, "Y"],
     Pre_1_C = ifelse(Pv_pre_1 < 0.01, ifelse(P_pre_1 > 0, 1, -1), 0),
     Post_1_C = ifelse(Pv_post_1 < 0.01, ifelse(P_post_1 > 0, 1, -1), 0),
     Post_2_C = ifelse(Pv_post_2 < 0.01, ifelse(P_post_2 > 0, 1, -1), 0),
     Post_3_C = ifelse(Pv_post_3 < 0.01, ifelse(P_post_3 > 0, 1, -1), 0),
     Post_4_C = ifelse(Pv_post_4 < 0.01, ifelse(P_post_4 > 0, 1, -1), 0),
-    Post_5_C = ifelse(Pv_post_5 < 0.01, ifelse(P_post_5 > 0, 1, -1), 0))
+    Post_5_C = ifelse(Pv_post_5 < 0.01, ifelse(P_post_5 > 0, 1, -1), 0),
+    bi_Pre_1_C_Post_1_C = case_when(
+      Pre_1_C == 1 & Post_1_C == 1 ~ 1,
+      Pre_1_C == 1 & Post_1_C == -1 ~ 2,
+      Pre_1_C == -1 & Post_1_C == 1 ~ 3,
+      Pre_1_C == -1 & Post_1_C == -1 ~ 4,
+      Pre_1_C == 1 & Post_1_C == 0 ~ 5,
+      Pre_1_C == -1 & Post_1_C == 0 ~ 6,
+      Pre_1_C == 0 & Post_1_C == 1 ~ 7,
+      Pre_1_C == 0 & Post_1_C == -1 ~ 8,
+      Pre_1_C == 0 & Post_1_C == 0 ~ 9,
+      TRUE ~ NA_real_),
+    bi_Pre_1_C_Post_2_C = case_when(
+      Pre_1_C == 1 & Post_2_C == 1 ~ 1,
+      Pre_1_C == 1 & Post_2_C == -1 ~ 2,
+      Pre_1_C == -1 & Post_2_C == 1 ~ 3,
+      Pre_1_C == -1 & Post_2_C == -1 ~ 4,
+      Pre_1_C == 1 & Post_2_C == 0 ~ 5,
+      Pre_1_C == -1 & Post_2_C == 0 ~ 6,
+      Pre_1_C == 0 & Post_2_C == 1 ~ 7,
+      Pre_1_C == 0 & Post_2_C == -1 ~ 8,
+      Pre_1_C == 0 & Post_2_C == 0 ~ 9,
+      TRUE ~ NA_real_),
+    bi_Pre_1_C_Post_3_C = case_when(
+      Pre_1_C == 1 & Post_3_C == 1 ~ 1,
+      Pre_1_C == 1 & Post_3_C == -1 ~ 2,
+      Pre_1_C == -1 & Post_3_C == 1 ~ 3,
+      Pre_1_C == -1 & Post_3_C == -1 ~ 4,
+      Pre_1_C == 1 & Post_3_C == 0 ~ 5,
+      Pre_1_C == -1 & Post_3_C == 0 ~ 6,
+      Pre_1_C == 0 & Post_3_C == 1 ~ 7,
+      Pre_1_C == 0 & Post_3_C == -1 ~ 8,
+      Pre_1_C == 0 & Post_3_C == 0 ~ 9,
+      TRUE ~ NA_real_),
+    bi_Pre_1_C_Post_4_C = case_when(
+      Pre_1_C == 1 & Post_4_C == 1 ~ 1,
+      Pre_1_C == 1 & Post_4_C == -1 ~ 2,
+      Pre_1_C == -1 & Post_4_C == 1 ~ 3,
+      Pre_1_C == -1 & Post_4_C == -1 ~ 4,
+      Pre_1_C == 1 & Post_4_C == 0 ~ 5,
+      Pre_1_C == -1 & Post_4_C == 0 ~ 6,
+      Pre_1_C == 0 & Post_4_C == 1 ~ 7,
+      Pre_1_C == 0 & Post_4_C == -1 ~ 8,
+      Pre_1_C == 0 & Post_4_C == 0 ~ 9,
+      TRUE ~ NA_real_),
+    bi_Pre_1_C_Post_5_C = case_when(
+      Pre_1_C == 1 & Post_5_C == 1 ~ 1,
+      Pre_1_C == 1 & Post_5_C == -1 ~ 2,
+      Pre_1_C == -1 & Post_5_C == 1 ~ 3,
+      Pre_1_C == -1 & Post_5_C == -1 ~ 4,
+      Pre_1_C == 1 & Post_5_C == 0 ~ 5,
+      Pre_1_C == -1 & Post_5_C == 0 ~ 6,
+      Pre_1_C == 0 & Post_5_C == 1 ~ 7,
+      Pre_1_C == 0 & Post_5_C == -1 ~ 8,
+      Pre_1_C == 0 & Post_5_C == 0 ~ 9,
+      TRUE ~ NA_real_))
 
 
 
-
-res_bi <- bi_class(res, x = Pre_1_C, y = Post_1_C, style = "quantile")
-#############################################################################################################
-
-
-res_bi <- bi_class(res, x = Pre_1_C, y = Post_1_C, style = "quantile")
-
-res_bi<- st_transform(res_bi, crs = "+proj=robin")
-
-# Reclasificar bi_class a valores numéricos
-res_bi$bi_class_num <- as.numeric(factor(res_bi$bi_class, levels = c(
-  "1-1", "1-2", "1-3",
-  "2-1", "2-2", "2-3",
-  "3-1", "3-2", "3-3"
-)))
+library(terra)
 # Convertir sf a SpatVector de terra
-res_bi_terra <- vect(res_bi)
+res_terra <- vect(res)
 
 # Crear un SpatRaster vacío con la extensión de tus datos
-raster_template <- rast(ext(res_bi_terra), resolution = 0.25) # Ajusta la resolución según sea necesario
+raster_template <- rast(ext(res_terra), resolution = 0.25) # Ajusta la resolución según sea necesario
 crs(raster_template) <- "EPSG:4326"
 
 # Rasterizar los puntos usando bi_class_num como valor
-raster_bi <- rasterize(res_bi_terra, raster_template, field = "bi_class_num", fun = "last")
+raster_bi <- rasterize(res, raster_template, field = "bi_Pre_1_C_Post_1_C", fun = "last")
 plot(raster_bi)
 
 raster_bi <- project(raster_bi, "+proj=robin")
@@ -96,15 +139,15 @@ unique(res_bi$bi_class)
 st_write(res_bi,"C:/A_TRABAJO/A_JORGE/ERA5/ERA5_RESULTS/res_bi.shp" )
 
 color_palette <- c(
-  "1-1" = "#73ae80",  # Verde claro
-  "1-2" = "#5a9178",  # Verde medio
-  "1-3" = "#2a5a5b",  # Verde oscuro
-  "2-1" = "#b8d6be",  # Verde muy claro
-  "2-2" = "#90b2b3",  # Gris claro
-  "2-3" = "#567994",  # Azul grisáceo
-  "3-1" = "#e8e8e8",  # Gris muy claro
-  "3-2" = "#b5c0da",  # Azul claro
-  "3-3" = "#6c83b5"   # Azul oscuro
+  "1" = "#73ae80",  # Verde claro
+  "2" = "#5a9178",  # Verde medio
+  "3" = "#2a5a5b",  # Verde oscuro
+  "1" = "#b8d6be",  # Verde muy claro
+  "2" = "#90b2b3",  # Gris claro
+  "3" = "#567994",  # Azul grisáceo
+  "1" = "#e8e8e8",  # Gris muy claro
+  "2" = "#b5c0da",  # Azul claro
+  "3" = "#6c83b5"   # Azul oscuro
 )
 ggplot() +
   geom_sf(data = world_map, fill = "gray30", color = "black",lwd = 0.2) +
