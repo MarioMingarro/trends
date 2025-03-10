@@ -16,8 +16,8 @@ res <- read.csv2("C:/A_TRABAJO/A_JORGE/ERA5/ERA5_RESULTS/RESULTADOS_ERA5_1940_20
 res <- res[,-1]
 res[res == 999] <- NA
 res <- sf::st_as_sf(res, coords = c("x", "y"), crs = 4326)
-res <- st_transform(res, crs = "+proj=robin")
-
+#res <- st_transform(res, crs = "+proj=robin")
+head(res)
 
 res <- res %>%
   mutate(
@@ -83,22 +83,58 @@ res <- res %>%
       Pre_1_C == 0 & Post_5_C == 1 ~ 7,
       Pre_1_C == 0 & Post_5_C == -1 ~ 8,
       Pre_1_C == 0 & Post_5_C == 0 ~ 9,
-      TRUE ~ NA_real_))
+      TRUE ~ NA_real_),
+    dec_break_1 = as.numeric(floor(year_break_1 / 10) * 10),
+    dec_break_2 = as.numeric(floor(year_break_2 / 10) * 10),
+    dec_break_3 = as.numeric(floor(year_break_3 / 10) * 10),
+    dec_break_4 = as.numeric(floor(year_break_4 / 10) * 10),
+    dec_break_5 = as.numeric(floor(year_break_5 / 10) * 10),
+    interaction_num = as.numeric(interaction(dec_break_1, dec_break_2)),
+    diff_break_1_2 = year_break_2 - year_break_1,
+    diff_break_2_3 = year_break_3 - year_break_2,
+    diff_break_3_4 = year_break_4 - year_break_3,
+    diff_break_4_5 = year_break_5 - year_break_4,
+    diff_temp_1_2 = tmed_post_1 -  tmed_pre_1,
+    diff_temp_2_3 = tmed_post_2 -  tmed_post_1,
+    diff_temp_3_4 = tmed_post_3 -  tmed_post_2,
+    diff_temp_4_5 = tmed_post_4 -  tmed_post_3)
 
-
+############################################
 
 library(terra)
+res_sig <- res %>%
+  dplyr::filter(p_value <= 0.05) %>%
+  dplyr::filter(!is.na(year_break_1) & year_break_1 >= 2010 & year_break_1 < 2023)
+
+
 # Convertir sf a SpatVector de terra
-res_terra <- vect(res)
+res_terra <- vect(res_sig)
 
 # Crear un SpatRaster vacío con la extensión de tus datos
 raster_template <- rast(ext(res_terra), resolution = 0.25) # Ajusta la resolución según sea necesario
 crs(raster_template) <- "EPSG:4326"
 
-# Rasterizar los puntos usando bi_class_num como valor
-raster_bi <- rasterize(res, raster_template, field = "bi_Pre_1_C_Post_1_C", fun = "last")
-plot(raster_bi)
 
+# Rasterizar los puntos usando bi_class_num como valor
+raster_diff_break <- rasterize(res_sig, raster_template, field = "diff_temp_1_2")
+raster_df <- as.data.frame(raster_diff_break, xy = TRUE)
+colnames(raster_df)[3] <- "value"
+ggplot() +
+  geom_raster(data = raster_df, aes(x = x, y = y, fill = value)) +
+  geom_sf(data = world_map, fill = "transparent", color = "black",lwd = 0.1) +
+  scale_fill_gradient2(
+    low = "blue",      # Color para valores negativos (e.g., -5)
+    mid = "white",     # Color para el punto medio (0)
+    high = "red",      # Color para valores positivos (e.g., +5)
+    midpoint = 0,      # Establece el punto medio en 0
+    limits = c(-5, 5) # Establece los límites de la escala en -5 y 5
+  )+
+  labs(title = "2010-2020")
+
+
+
+plot(raster_diff_break)
+raste
 raster_bi <- project(raster_bi, "+proj=robin")
 color_palette <- c(
   "#73ae80",  # 1-1
@@ -124,18 +160,6 @@ ggplot() +
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-unique(res_bi$bi_class)
 st_write(res_bi,"C:/A_TRABAJO/A_JORGE/ERA5/ERA5_RESULTS/res_bi.shp" )
 
 color_palette <- c(
