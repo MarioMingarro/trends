@@ -14,7 +14,7 @@ library(tidyterra)
 rm(list=(ls()[ls()!="data"]))
 
 # DATA ----
-a <- rast("C:/A_TRABAJO/ERA5/ERA5_DATA/era5_1940_2023.nc")
+a <- rast("C:/A_TRABAJO/A_JORGE/ERA5/ERA5_DATA/era5_1940_2023.nc")
 
 n_layers <- nlyr(a)
 
@@ -34,6 +34,8 @@ crs(data)  <- "epsg:4326"
 
 data <- as.data.frame(data, xy = TRUE)
 data <- data[, -87]
+
+
 
 # TEST 
 data2 <- data
