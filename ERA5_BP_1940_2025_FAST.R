@@ -2,7 +2,7 @@ library(terra)
 library(strucchange)
 library(tictoc)
 
-# --- CONFIGURACIÓN ---
+
 path_nc <- "C:/A_TRABAJO/A_JORGE/ERA5/ERA5_DATA/era5_1940_2025.nc"
 max_segments_allowed <- 5 
 
@@ -11,7 +11,7 @@ bp_pixel_analysis_fast <- function(x) {
   max_segs <- 5 
   significance <- 0.01
   n_total <- length(x)
-  
+
   if (any(is.na(x)) || all(x == 0) || length(unique(na.omit(x))) < 10) {
     return(rep(NA, 7 + (max_segs * 5)))
   }
@@ -19,33 +19,33 @@ bp_pixel_analysis_fast <- function(x) {
   v_years <- 1:n_total
   ss <- ts(x, frequency = 1)
   
-  # 1. TEST DE ESTABILIDAD (Rápido)
-  # Usamos un h ligeramente mayor para ganar velocidad en el escaneo
+  # 1. TEST DE ESTABILIDAD (SupF Test)
+  # h=0.05 permite capturar segmentos de hasta ~4 años
   qlr  <- strucchange::Fstats(ss ~ v_years, from = 0.05)
   test <- strucchange::sctest(qlr, type = "supF")
   
   f_stat  <- as.numeric(test$statistic)
   f_p_val <- as.numeric(test$p.value)
   
-  # Inicializar resultados globales
+
   lm_total <- lm(ss ~ v_years)
   res_global <- c(
-    n_breaks = 0,
-    P_total  = as.numeric(coef(lm_total)[2]),
-    Pv_total = summary(lm_total)$coefficients[2, 4],
-    RSE      = sqrt(deviance(lm_total)/df.residual(lm_total)),
+    n_breaks     = 0,
+    P_total      = as.numeric(coef(lm_total)[2]),
+    Pv_total     = summary(lm_total)$coefficients[2, 4],
+    RSE          = sqrt(deviance(lm_total)/df.residual(lm_total)),
     T_mean_total = mean(ss),
-    F_sup    = f_stat,
-    P_val_sup = f_p_val
+    F_sup        = f_stat,
+    P_val_sup    = f_p_val
   )
-  
+
   seg_data <- rep(NA, max_segs * 5)
   
-  # 2. FILTRO DE SIGNIFICANCIA (La clave de la velocidad)
-  # Solo buscamos los puntos exactos si el test dice que existen
+  # 2. LÓGICA DE RUPTURAS
+  # Si el test F detecta inestabilidad, buscamos dónde están los quiebres
   if (f_p_val < significance) {
     bp <- tryCatch({
-      # Solo ejecutamos breakpoints si hay evidencia de cambio
+      # Dejamos que el algoritmo encuentre el número óptimo de rupturas
       strucchange::breakpoints(ss ~ v_years, h = 0.05) 
     }, error = function(e) return(NULL))
     
@@ -55,8 +55,7 @@ bp_pixel_analysis_fast <- function(x) {
       
       pts <- c(1, break_pts, n_total)
       n_segments <- length(pts) - 1
-      
-      for (j in 1:min(n_segments, max_segs)) {
+    for (j in 1:min(n_segments, max_segs)) {
         idx_start <- if (j == 1) pts[j] else pts[j] + 1
         idx_end   <- pts[j+1]
         
@@ -78,7 +77,6 @@ bp_pixel_analysis_fast <- function(x) {
       }
     }
   } else {
-    # Si no es significativo, el primer segmento es simplemente la serie completa
     seg_data[1:5] <- c(res_global["P_total"], res_global["Pv_total"], 1940, 1939 + n_total, res_global["T_mean_total"])
   }
   
@@ -88,58 +86,37 @@ bp_pixel_analysis_fast <- function(x) {
 # --- PROCESAMIENTO ESPACIAL ---
 r <- rast(path_nc)
 
-# 1. LIMPIEZA DE PERIODOS INCOMPLETOS
-# Supongamos que queremos solo años completos (1940-2025)
+
 n_capas <- nlyr(r)
 fechas <- seq(as.Date("1940-01-01"), by = "month", length.out = n_capas)
 terra::time(r) <- fechas
 
-# Filtramos: Solo nos quedamos con los meses de años menores a 2026
+
 capas_validas <- which(as.numeric(format(fechas, "%Y")) <= 2025)
 r <- r[[capas_validas]]
 
-# 2. PROCESAMIENTO ANUAL
-test_ext <- ext(10, 350, 35, 45) 
+# EXTEND TEST
+test_ext <- ext(0, 10, 35, 45) 
 r <- crop(r, test_ext)
+
+# Media anual y conversión de Kelvin a Celsius
 r_annual <- terra::tapp(r, "years", mean) - 273.15
 
-# writeRaster(r_annual, "C:/A_TRABAJO/A_JORGE/ERA5/ERA5_anual_1940_2025.tif", overwrite = TRUE, datatype = "FLT4S")
 
-tic()
+tic("Procesamiento de tendencias")
 res_rast <- terra::app(r_annual, fun = bp_pixel_analysis_fast, cores = 10)
 toc()
+
+# --- EXTRACCIÓN Y ETIQUETADO ---
 final_df <- as.data.frame(res_rast, xy = TRUE)
 
-# Nombres de columnas actualizados con el test F
-base_names <- c("x", "y", "n_breaks", "P_total", "Pv_total", "RSE", "T_mean_total", "F_sup", "P_val_sup")
-seg_names  <- c()
-for(i in 1:max_segments_allowed) {
-  seg_names <- c(seg_names, paste0(c("P_seg", "Pv_seg", "Start", "End", "Tmean_seg"), "_", i))
-}
-colnames(final_df) <- c(base_names, seg_names)
-final_df
+base_names <- c("n_breaks", "P_total", "Pv_total", "RSE", "T_mean_total", "F_sup", "P_val_sup")
 
-write.csv2(final_df, "C:/A_TRABAJO/A_JORGE/ERA5/RES_FINAL_CON_ESTADISTICO_F.csv")
+seg_vars <- c("P_seg", "Pv_seg", "Start", "End", "Tmean_seg")
+seg_names <- expand.grid(seg_vars, 1:max_segments_allowed)
+seg_names <- paste0(seg_names$Var1, "_", seg_names$Var2)
 
+colnames(final_df) <- c("x", "y", base_names, seg_names)
 
-
-
-# 1. Extraer la capa del número de rupturas (es la primera capa)
-mapa_breaks <- res_rast[[1]]
-names(mapa_breaks) <- "Numero_de_Rupturas"
-
-# 2. Definir una paleta de colores discreta
-# 0: gris/azul, 1: amarillo, 2: naranja, 3+: rojo
-colores <- c("grey90", "#FFD700", "#FF8C00", "#FF4500", "#8B0000")
-
-# 3. Dibujar el mapa
-plot(mapa_breaks, 
-     main = "Número de Puntos de Ruptura en la Tendencia (1940-2025)",
-     col = colores,
-     type = "classes", 
-     levels = c(0, 1, 2, 3, 4),
-     plg = list(title = "Rupturas", x = "bottomright"))
-
-# Añadir fronteras para referencia (opcional)
-# frontiers <- vect(algun_shapefile_de_paises)
-# plot(frontiers, add = TRUE, border = "black")
+# --- RESULTADOS ---
+head(final_df)
